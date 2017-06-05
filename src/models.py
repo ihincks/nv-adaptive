@@ -14,7 +14,7 @@ from glob import glob
 
 ## CONSTANTS ##################################################################
 
-# Zero field spitting and gyromagnetic ratios (all in MHz)
+# Construct Relevant operators
 
 Si = np.eye(3)
 Sx = np.array([[0,1,0],[1,0,1],[0,1,0]])/np.sqrt(2)
@@ -27,7 +27,6 @@ two_pii = two_pi*1j
 two_pii_s2 = two_pii/np.sqrt(2)
 four_pi = two_pi * 2
 
-# Construct a vectorized 0 projector
 P0 = np.zeros((3, 3), dtype=complex)
 P0[1, 1] = 1
 P0vec = P0.flatten(order='F')
@@ -41,72 +40,6 @@ GZ = 1j *(np.kron(HZ.T, np.eye(3)) - np.kron(np.eye(3), HZ))
 HZ2 = 2 * np.pi * Sz2
 GZ2 = 1j *(np.kron(HZ2.T, np.eye(3)) - np.kron(np.eye(3), HZ2))
 
-## FUNCTIONS ##################################################################
-
-def poisson_pdf(k, mu):
-    """
-    Probability of k events in a poisson process of expectation mu
-    """
-    return np.exp(xlogy(k, mu) - gammaln(k + 1) - mu)
-
-def load_averages(pattern, times_file):
-    """
-    Sums up matlab "average files" specified by glob pattern.
-    """
-    file_list = glob(pattern)
-    file_list.sort()
-    M = [sio.loadmat(fname)['M'][np.newaxis, ...] for fname in file_list]
-    return np.concatenate(M,axis=0)
-
-def unitary(t, phi, wr, we, dwc):
-    """
-    Returns the unitary at time t of
-    H = wr*cos(phi)*Sx + wr*sin(phi)*Syp + we*Sz + dwc*Sz.Sz
-    """
-    wr, we, dwc = -t*two_pii_s2*wr, -t*two_pii*we, -t*two_pii*dwc
-    wrp, wrm = np.exp(1j*phi)*wr, np.exp(-1j*phi)*wr
-    return expm(
-        np.array([[dwc+we, wrm, 0], [wrp, 0, wrp], [0, wrm, dwc-we]])
-    )
-
-def superop(t, wr, we, dwc, T2inv):
-    """
-    Returns superoperator at time t resulting from
-    the Hamiltonian/Lindblad
-    H = wr*Sx + we*Sz + dwc*Sz.Sz, L=sqrt(T2)Sz
-    Formulas taken from formulas.nb notebook.
-    """
-    wr, we, dwc, T2inv2 = t*two_pii_s2*wr, t*two_pii*we, t*two_pii*dwc, t*np.pi*T2inv
-    v1 = [-wr, -wr, 0, -wr, -wr, 0, -wr, -wr]
-    v3 = [wr, wr, wr, wr, wr, wr]
-    G = np.diag([
-        0, -T2inv2 + dwc + we, -4*T2inv2 + 2*we, 
-        - T2inv2 - dwc - we, 0, -T2inv2 - dwc + we, 
-        -4*T2inv2 - 2*we, -T2inv2 + dwc - we, 0
-    ], k=0) + \
-    np.diag(v1, k=1) + np.diag(v1, k=-1) + \
-    np.diag(v3, k=3) + np.diag(v3, k=-3)
-
-    return expm(G)
-    
-
-def rabi(tp, tau, phi, wr, we, dwc, an, T2inv):
-    """
-    Return signal calculated by propagating
-    supergenerator due to Rabi experiment with 
-    given parameters. tau is ignored.
-    """
-    n_models = wr.shape[0]
-    sig = np.empty((n_models,))
-    for idx in xrange(n_models):
-        # take an incoherent sum over nitrogen values
-        S = superop(tp, wr[idx], we[idx], dwc[idx], T2inv[idx]) + \
-            superop(tp, wr[idx], we[idx] + an[idx], dwc[idx], T2inv[idx]) + \
-            superop(tp, wr[idx], we[idx] - an[idx], dwc[idx], T2inv[idx])
-        sig[idx] =  np.real(np.dot(P0vec, np.dot(S, P0vec))) / 3
-
-    return sig
-    
 class RepeatedOperator(object):
     def __init__(self, op):
         self.op = op
@@ -130,7 +63,15 @@ vecSz = RepeatedOperator(-1j * 2 * np.pi * Sz)
 vecSz2 = RepeatedOperator(-1j * 2 * np.pi * Sz2)   
 vecLz = RepeatedOperator(two_pi * (np.kron(Sz, Sz) - (np.kron(Sz2, Si) + np.kron(Si, Sz2)) / 2))
 
-def rabi2(tp, tau, phi, wr, we, dwc, an, T2inv):
+## FUNCTIONS ##################################################################
+
+def poisson_pdf(k, mu):
+    """
+    Probability of k events in a poisson process of expectation mu
+    """
+    return np.exp(xlogy(k, mu) - gammaln(k + 1) - mu)
+
+def rabi(tp, tau, phi, wr, we, dwc, an, T2inv):
     # this is the same as rabi, except that we use the vexpm function
     n_models = wr.shape[0]
     # supergenerator without nitrogen
@@ -150,36 +91,8 @@ def pure_evolve(U):
     """
     psi = U[:,1]
     return np.dot(psi[:,np.newaxis],psi.conj()[np.newaxis,:])
-
-def ramsey(tp, tau, phi, wr, we, dwc, an, T2inv):
-    """
-    Return signal due to Ramsey experiment with
-    given parameters
-    """
-    n_models = wr.shape[0]
-    sig = np.empty((n_models,))
-    for idx in xrange(n_models):
-        # assume tp is small enough that T2 doesn't matter
-        Pinit1 = pure_evolve(unitary(tp, 0, wr[idx], we[idx], dwc[idx])).flatten(order='F')
-        Pinit2 = pure_evolve(unitary(tp, 0, wr[idx], we[idx] + an[idx], dwc[idx])).flatten(order='F')
-        Pinit3 = pure_evolve(unitary(tp, 0, wr[idx], we[idx] - an[idx], dwc[idx])).flatten(order='F')
-        if phi == 0:
-            Pfinal1, Pfinal2, Pfinal3 = Pinit1, Pinit2, Pinit3
-        else:
-            Pfinal1 = pure_evolve(unitary(tp, phi, wr[idx], we[idx], dwc[idx])).flatten(order='F')
-            Pfinal2 = pure_evolve(unitary(tp, phi, wr[idx], we[idx] + an[idx], dwc[idx])).flatten(order='F')
-            Pfinal3 = pure_evolve(unitary(tp, phi, wr[idx], we[idx] - an[idx], dwc[idx])).flatten(order='F')
-        
-        # take an incoherent sum over nitrogen values
-        S = np.real(np.dot(Pfinal1, np.dot(superop(tau, 0, we[idx], dwc[idx], T2inv[idx]), Pinit1)))
-        S = S + np.real(np.dot(Pfinal2, np.dot(superop(tau, 0, we[idx] + an[idx], dwc[idx], T2inv[idx]), Pinit2)))
-        S = S + np.real(np.dot(Pfinal3, np.dot(superop(tau, 0, we[idx] - an[idx], dwc[idx], T2inv[idx]), Pinit3)))
-
-        sig[idx] =  S / 3
-
-    return sig
     
-def ramsey2(tp, tau, phi, wr, we, dwc, an, T2inv):
+def ramsey(tp, tau, phi, wr, we, dwc, an, T2inv):
     """
     Return signal due to Ramsey experiment with
     given parameters
@@ -219,135 +132,6 @@ def ramsey2(tp, tau, phi, wr, we, dwc, an, T2inv):
     p = p + np.matmul(sp.swapaxes(-2,-1), np.matmul(vexpm(G1 + GA), sp))[...,0,0]
     
     return np.real(p) / 3
-
-
-    n_models = wr.shape[0]
-    sig = np.empty((n_models,))
-    for idx in xrange(n_models):
-        # assume tp is small enough that T2 doesn't matter
-        Pinit1 = pure_evolve(unitary(tp, 0, wr[idx], we[idx], dwc[idx])).flatten(order='F')
-        Pinit2 = pure_evolve(unitary(tp, 0, wr[idx], we[idx] + an[idx], dwc[idx])).flatten(order='F')
-        Pinit3 = pure_evolve(unitary(tp, 0, wr[idx], we[idx] - an[idx], dwc[idx])).flatten(order='F')
-        if phi == 0:
-            Pfinal1, Pfinal2, Pfinal3 = Pinit1, Pinit2, Pinit3
-        else:
-            Pfinal1 = pure_evolve(unitary(tp, phi, wr[idx], we[idx], dwc[idx])).flatten(order='F')
-            Pfinal2 = pure_evolve(unitary(tp, phi, wr[idx], we[idx] + an[idx], dwc[idx])).flatten(order='F')
-            Pfinal3 = pure_evolve(unitary(tp, phi, wr[idx], we[idx] - an[idx], dwc[idx])).flatten(order='F')
-        
-        # take an incoherent sum over nitrogen values
-        S = np.real(np.dot(Pfinal1, np.dot(superop(tau, 0, we[idx], dwc[idx], T2inv[idx]), Pinit1)))
-        S = S + np.real(np.dot(Pfinal2, np.dot(superop(tau, 0, we[idx] + an[idx], dwc[idx], T2inv[idx]), Pinit2)))
-        S = S + np.real(np.dot(Pfinal3, np.dot(superop(tau, 0, we[idx] - an[idx], dwc[idx], T2inv[idx]), Pinit3)))
-
-        sig[idx] =  S / 3
-
-    return sig
-
-def rabi_analytic(tp, tau, phi, wr, we, dwc, an, T2inv):
-    """
-    Return signal calculated with an analytic formula for the
-    qubit approximation. Note this formula fails for very long times.
-    See formulas.nb for derivation.
-    """
-    decay = np.exp(- tp * T2inv)
-    sig = (1 - decay) / 2
-    dw = two_pi * (we - dwc)
-    dw2 = dw ** 2
-    wr2 = (two_pi * wr) ** 2
-
-    # The effective field term with m_I=0
-    w_eff2 = (dw2 + 2 * wr2)
-    sig  = sig + (1/6) * decay * (
-        (dw2 + wr2 * (1 + np.cos(tp * np.sqrt(w_eff2)))) /
-        w_eff2
-    )
-
-    # The effective field term with m_I=-1
-    dwan2 = (dw + two_pi * an) ** 2
-    w_eff2 = (dwan2 + wr2)
-    sig  = sig + (1/6) * decay * (
-        (dwan2 + wr2 * (1 + np.cos(tp * np.sqrt(w_eff2)))) /
-        w_eff2
-    )
-
-    # The effective field term with m_I=+1
-    dwan2 = (dw - two_pi * an) ** 2
-    w_eff2 = (dwan2 + wr2)
-    sig  = sig + (1/6) * decay * (
-        (dwan2 + wr2 * (1 + np.cos(tp * np.sqrt(w_eff2)))) /
-        w_eff2
-    )
-
-    return sig
-    
-def detect_peaks(x, mph=None, mpd=1, threshold=0, edge='rising',
-                 kpsh=False, valley=False, show=False, ax=None):
-    """Detect peaks in data based on their amplitude and other features.
-
-    References
-    ----------
-    .. [1] http://nbviewer.ipython.org/github/demotu/BMC/blob/master/notebooks/DetectPeaks.ipynb
-    """
-
-    x = np.atleast_1d(x).astype('float64')
-    if x.size < 3:
-        return np.array([], dtype=int)
-    if valley:
-        x = -x
-    # find indices of all peaks
-    dx = x[1:] - x[:-1]
-    # handle NaN's
-    indnan = np.where(np.isnan(x))[0]
-    if indnan.size:
-        x[indnan] = np.inf
-        dx[np.where(np.isnan(dx))[0]] = np.inf
-    ine, ire, ife = np.array([[], [], []], dtype=int)
-    if not edge:
-        ine = np.where((np.hstack((dx, 0)) < 0) & (np.hstack((0, dx)) > 0))[0]
-    else:
-        if edge.lower() in ['rising', 'both']:
-            ire = np.where((np.hstack((dx, 0)) <= 0) & (np.hstack((0, dx)) > 0))[0]
-        if edge.lower() in ['falling', 'both']:
-            ife = np.where((np.hstack((dx, 0)) < 0) & (np.hstack((0, dx)) >= 0))[0]
-    ind = np.unique(np.hstack((ine, ire, ife)))
-    # handle NaN's
-    if ind.size and indnan.size:
-        # NaN's and values close to NaN's cannot be peaks
-        ind = ind[np.in1d(ind, np.unique(np.hstack((indnan, indnan-1, indnan+1))), invert=True)]
-    # first and last values of x cannot be peaks
-    if ind.size and ind[0] == 0:
-        ind = ind[1:]
-    if ind.size and ind[-1] == x.size-1:
-        ind = ind[:-1]
-    # remove peaks < minimum peak height
-    if ind.size and mph is not None:
-        ind = ind[x[ind] >= mph]
-    # remove peaks - neighbors < threshold
-    if ind.size and threshold > 0:
-        dx = np.min(np.vstack([x[ind]-x[ind-1], x[ind]-x[ind+1]]), axis=0)
-        ind = np.delete(ind, np.where(dx < threshold)[0])
-    # detect small peaks closer than minimum peak distance
-    if ind.size and mpd > 1:
-        ind = ind[np.argsort(x[ind])][::-1]  # sort ind by peak height
-        idel = np.zeros(ind.size, dtype=bool)
-        for i in range(ind.size):
-            if not idel[i]:
-                # keep peaks with the same height if kpsh is True
-                idel = idel | (ind >= ind[i] - mpd) & (ind <= ind[i] + mpd) \
-                    & (x[ind[i]] > x[ind] if kpsh else True)
-                idel[i] = 0  # Keep current peak
-        # remove the small peaks and sort back the indices by their occurrence
-        ind = np.sort(ind[~idel])
-
-    if show:
-        if indnan.size:
-            x[indnan] = np.nan
-        if valley:
-            x = -x
-        _plot(x, mph, mpd, threshold, edge, valley, ax, ind)
-
-    return ind
     
 
 ## CLASSES ##################################################################
@@ -409,8 +193,8 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
 
         self.use_separate_ramsey_power = use_separate_ramsey_power
         self.simulator = {
-            self.RABI:   rabi2,
-            self.RAMSEY: ramsey2
+            self.RABI:   rabi,
+            self.RAMSEY: ramsey
         }
 
         self._domain = qi.IntegerDomain(min=0, max=1)
@@ -636,7 +420,7 @@ class ReferencedPoissonModel(qi.DerivedModel):
 
                 # Reference Rate
                 alpha = np.tile(modelparams[:, -2], (outcomes.shape[0], 1))
-                beta = np.tile(modelparams[:, -1], (outcomes.shape[0], 1))
+                beta = np.tile(modelparams[:, -1], (outcomes.shape[g0], 1))
 
                 # For each model parameter, turn this into an expected poisson rate
                 gamma = pr0 * alpha + (1 - pr0) * beta
