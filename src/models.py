@@ -9,6 +9,7 @@ import scipy.io as sio
 from scipy.linalg import expm
 from scipy.special import xlogy, gammaln
 from vexpm import vexpm
+from fractions import gcd as fgcd
 
 from glob import glob
 
@@ -63,7 +64,7 @@ vecSz = RepeatedOperator(-1j * 2 * np.pi * Sz)
 vecSz2 = RepeatedOperator(-1j * 2 * np.pi * Sz2)   
 vecLz = RepeatedOperator(two_pi * (np.kron(Sz, Sz) - (np.kron(Sz2, Si) + np.kron(Si, Sz2)) / 2))
 
-## FUNCTIONS ##################################################################
+## FUNCTIONS ###################################################################
 
 def poisson_pdf(k, mu):
     """
@@ -71,67 +72,146 @@ def poisson_pdf(k, mu):
     """
     return np.exp(xlogy(k, mu) - gammaln(k + 1) - mu)
 
-def rabi(tp, tau, phi, wr, we, dwc, an, T2inv):
-    # this is the same as rabi, except that we use the vexpm function
+ufgcd = np.frompyfunc(fgcd, 2, 1)
+def gcd(m):
+    """Return the greatest common divisor of the given integers"""
+    return np.ufunc.reduce(ufgcd, m.astype(np.int))
+
+## SIMULATORS ##################################################################
+
+class CachedPropagator(object):
+    
+    def __init__(self, generator, base_timestep=1, max_expected_time=4):
+        self.base_timestep = base_timestep
+        self.generator = generator
+        self.shape = self.generator.shape
+        
+        # we are careful to choose a pade_order and scale_power that matches the
+        # the expected max size of the norm of generator, rather than just 
+        # at base_timestep
+        norm_multiplier = max_expected_time / base_timestep
+        self._propagator = {(1,): vexpm(base_timestep * generator, norm_multiplier=norm_multiplier)}
+    
+    def propagator(self, bin_expansion):
+        """
+        Returns expm(base_timestep * generator) ** m where 
+        the binary expansion of m is a tuple given by bin_expansion.
+        """
+        # leading zeros do not contribute to the multiplier
+        if bin_expansion[0] == 0:
+            return self.propagator(bin_expansion[1:])
+        
+        # otherwise look to see if we have already computed this multiplier    
+        if not self._propagator.has_key(bin_expansion):
+            if not any(bin_expansion[1:]):
+                # in this case we have a power of 2, ex, bin_expansion = (1,0,0)
+                self._propagator[bin_expansion] = np.matmul(
+                        self.propagator(bin_expansion[:-1]), 
+                        self.propagator(bin_expansion[:-1])
+                    )
+            else:
+                # recursion step
+                self._propagator[bin_expansion] = np.matmul(
+                        self.propagator((1,) + (0,)*(len(bin_expansion)-1)), 
+                        self.propagator(bin_expansion[1:])
+                    )
+            
+        return self._propagator[bin_expansion]
+        
+    def __call__(self, time):
+        """
+        Returns an approximation of expm(time * generator)
+        """
+        mult = int(time / self.base_timestep)
+        base2_expansion = map(lambda x: 0 if x == '0' else 1, np.base_repr(mult))
+        return self.propagator(tuple(base2_expansion))
+    
+
+def rabi_cached(tp, tau, phi, wr, we, dwc, an, T2inv):
     n_models = wr.shape[0]
+    base_timestep = gcd(tp * 1000) / 1000
     # supergenerator without nitrogen
-    G1 = tp * (wr[:, np.newaxis, np.newaxis] * vecGx(n_models) \
+    G1 = (wr[:, np.newaxis, np.newaxis] * vecGx(n_models) \
         + we[:, np.newaxis, np.newaxis] * vecGz(n_models) \
         + dwc[:, np.newaxis, np.newaxis] * vecGz2(n_models) \
         + T2inv[:, np.newaxis, np.newaxis] * vecLz(n_models))
     # supergenerator for just nitrogen
-    GA = tp * an[:, np.newaxis, np.newaxis] * vecGz(n_models)
+    GA = an[:, np.newaxis, np.newaxis] * vecGz(n_models)
     # simulate three nitrogen cases and average results
     # note that preparing P0 and measuring P0 is equivalent to getting central element (4,4)
-    return np.real(vexpm(G1 - GA)[:, 4, 4] + vexpm(G1)[:, 4, 4] + vexpm(G1 + GA)[:, 4, 4]) / 3
+    Sm = CachedPropagator(G1 - GA, base_timestep=base_timestep, max_expected_time=1)
+    S0 = CachedPropagator(G1, base_timestep=base_timestep, max_expected_time=1)
+    Sp = CachedPropagator(G1 + GA, base_timestep=base_timestep, max_expected_time=1)
 
-def pure_evolve(U):
-    """
-    Multiplies U by the 0 state and then takes the outer product.
-    """
-    psi = U[:,1]
-    return np.dot(psi[:,np.newaxis],psi.conj()[np.newaxis,:])
+    pr0 = np.empty((tp.size, wr.size))
+    for idx_t, t in enumerate(tp):
+        pr0[idx_t, :]  = np.real(Sm(t)[:, 4, 4] + S0(t)[:, 4, 4] + Sp(t)[:, 4, 4]) / 3
+
+    return pr0
+    
+def rabi(tp, tau, phi, wr, we, dwc, an, T2inv):
+    n_models = wr.shape[0]
+    pr0 = np.empty((tp.size, wr.size))
+    # supergenerator without nitrogen
+    G1 = (wr[:, np.newaxis, np.newaxis] * vecGx(n_models) \
+        + we[:, np.newaxis, np.newaxis] * vecGz(n_models) \
+        + dwc[:, np.newaxis, np.newaxis] * vecGz2(n_models) \
+        + T2inv[:, np.newaxis, np.newaxis] * vecLz(n_models))
+    # supergenerator for just nitrogen
+    GA = an[:, np.newaxis, np.newaxis] * vecGz(n_models)
+    for idx_t, t in enumerate(tp):
+        # simulate three nitrogen cases and average results
+        # note that preparing P0 and measuring P0 is equivalent to getting central element (4,4)
+        pr0[idx_t, :]  = np.real(
+            vexpm(t * (G1 - GA))[:, 4, 4] + 
+            vexpm(t * G1)[:, 4, 4] + 
+            vexpm(t * (G1 + GA))[:, 4, 4]
+        ) / 3
+    return pr0
     
 def ramsey(tp, tau, phi, wr, we, dwc, an, T2inv):
     """
     Return signal due to Ramsey experiment with
     given parameters
     """
-    # this is the same as the ramsey function, but using vexpm
     n_models = wr.shape[0]
     # hamiltonian without nitrogen during rabi
-    H1 = tp * (wr[:, np.newaxis, np.newaxis] * vecSx(n_models) \
+    H1 = (wr[:, np.newaxis, np.newaxis] * vecSx(n_models) \
         + we[:, np.newaxis, np.newaxis] * vecSz(n_models) \
         + dwc[:, np.newaxis, np.newaxis] * vecSz2(n_models))
     # hamiltonian for just nitrogen
-    HA = tp * an[:, np.newaxis, np.newaxis] * vecSz(n_models)
-    
-    # states after square pulses
-    sm = vexpm(H1 - HA)[...,1]
-    s0 = vexpm(H1)[...,1]
-    sp = vexpm(H1 + HA)[...,1]
-    
-    # convert to vectorized density matrix
-    sm = np.repeat(sm.conj(), 3, axis=-1) * np.reshape(np.tile(sm, 3), (-1, 9))
-    sm = sm[...,np.newaxis]
-    s0 = np.repeat(s0.conj(), 3, axis=-1) * np.reshape(np.tile(s0, 3), (-1, 9))
-    s0 = s0[...,np.newaxis]
-    sp = np.repeat(sp.conj(), 3, axis=-1) * np.reshape(np.tile(sp, 3), (-1, 9))
-    sp = sp[...,np.newaxis]
-    
+    HA = an[:, np.newaxis, np.newaxis] * vecSz(n_models)
     # supergenerator during wait
-    G1 = tau * (we[:, np.newaxis, np.newaxis] * vecGz(n_models) \
+    G1 = (we[:, np.newaxis, np.newaxis] * vecGz(n_models) \
         + dwc[:, np.newaxis, np.newaxis] * vecGz2(n_models) \
         + T2inv[:, np.newaxis, np.newaxis] * vecLz(n_models))
     # supergenerator for just nitrogen
-    GA = tau * an[:, np.newaxis, np.newaxis] * vecGz(n_models)
+    GA = an[:, np.newaxis, np.newaxis] * vecGz(n_models)
     
-    # sandwich wait between square pulses
-    p = np.matmul(sm.swapaxes(-2,-1), np.matmul(vexpm(G1 - GA), sm))[...,0,0]
-    p = p + np.matmul(s0.swapaxes(-2,-1), np.matmul(vexpm(G1), s0))[...,0,0]
-    p = p + np.matmul(sp.swapaxes(-2,-1), np.matmul(vexpm(G1 + GA), sp))[...,0,0]
-    
-    return np.real(p) / 3
+    pr0 = np.empty((tp.size, wr.size))
+    for idx_t in range(tp.size):
+        t1, t2 = tp[idx_t], tau[idx_t]
+        
+        # states after square pulses
+        sm = vexpm(t1 * (H1 - HA))[...,1]
+        s0 = vexpm(t1 * H1)[...,1]
+        sp = vexpm(t1 * (H1 + HA))[...,1]
+        
+        # convert to vectorized density matrix
+        sm = np.repeat(sm.conj(), 3, axis=-1) * np.reshape(np.tile(sm, 3), (-1, 9))
+        sm = sm[...,np.newaxis]
+        s0 = np.repeat(s0.conj(), 3, axis=-1) * np.reshape(np.tile(s0, 3), (-1, 9))
+        s0 = s0[...,np.newaxis]
+        sp = np.repeat(sp.conj(), 3, axis=-1) * np.reshape(np.tile(sp, 3), (-1, 9))
+        sp = sp[...,np.newaxis]
+        
+        # sandwich wait between square pulses
+        p = np.matmul(sm.swapaxes(-2,-1), np.matmul(vexpm(t2 * (G1 - GA)), sm))[...,0,0]
+        p = p + np.matmul(s0.swapaxes(-2,-1), np.matmul(vexpm(t2 * G1), s0))[...,0,0]
+        p = p + np.matmul(sp.swapaxes(-2,-1), np.matmul(vexpm(t2 * (G1 + GA)), sp))[...,0,0]
+        
+        pr0[idx_t, :] = np.real(p) / 3
+    return pr0
     
 
 ## CLASSES ##################################################################
@@ -184,14 +264,12 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
         IDX_OMEGA, IDX_ZEEMAN,
         IDX_DCENTER,
         IDX_A_N, IDX_T2_INV,
-        IDX_OMEGA_RAMSEY,
         IDX_ALPHA, IDX_BETA
-    ) = range(8)
+    ) = range(7)
 
-    def __init__(self, use_separate_ramsey_power=False):
+    def __init__(self):
         super(RabiRamseyModel, self).__init__()
 
-        self.use_separate_ramsey_power = use_separate_ramsey_power
         self.simulator = {
             self.RABI:   rabi,
             self.RAMSEY: ramsey
@@ -210,8 +288,7 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
             r'\omega_e',
             r'\Delta\omega_c',
             r'A_N',
-            r'T_2^{-1}',
-            r'\Omega_{Ramsey}' # this modelparam is ignored if use_separate_ramsey_power is false
+            r'T_2^{-1}'
         ]
         
     @property
@@ -228,7 +305,6 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
             [
                 # Require that some frequencies be positive.
                 modelparams[:, RabiRamseyModel.IDX_OMEGA] >= 0,
-                modelparams[:, RabiRamseyModel.IDX_OMEGA_RAMSEY] >= 0,
                 modelparams[:, RabiRamseyModel.IDX_ZEEMAN] >= 0,
                 modelparams[:, RabiRamseyModel.IDX_A_N] >= 0,
 
@@ -244,42 +320,39 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
     def n_outcomes(self, expparams):
         return 2
         
-    @MemoizeLikelihood
+    #@MemoizeLikelihood
     def likelihood(self, outcomes, modelparams, expparams):
         """
         Returns the likelihood of measuring |0> under a projective
         measurement.
         """
         
-        pr0 = np.empty((modelparams.shape[0], expparams.shape[0]))
-        
         # get model details for all particles
         wr    = modelparams[:, self.IDX_OMEGA]
-        wrr   = modelparams[:, self.IDX_OMEGA_RAMSEY]
         we    = modelparams[:, self.IDX_ZEEMAN]
         dwc   = modelparams[:, self.IDX_DCENTER]
         an    = modelparams[:, self.IDX_A_N]
         T2inv = modelparams[:, self.IDX_T2_INV]
         
-        # Loop over experiment parameters
-        for idx_experiment in xrange(expparams.shape[0]):
-            mode = expparams[idx_experiment]['emode']
-            
-            # Otherwise, we need to simulate
-            t = expparams[idx_experiment]['t'] 
-            tau = expparams[idx_experiment]['tau'] 
-            phi = expparams[idx_experiment]['phi']
+        # get expparam details
+        mode = expparams['emode']
+        t = expparams['t'] 
+        tau = expparams['tau'] 
+        phi = expparams['phi']
+        
+        # figure out which experements are rabi and ramsey
+        rabi_mask, ramsey_mask = mode == self.RABI, mode == self.RAMSEY
+        
+        # run both simulations
+        pr0 = np.empty((expparams.shape[0], modelparams.shape[0]))
+        pr0[rabi_mask] = self.simulator[self.RABI](
+                t[rabi_mask], 0, 0, wr, we, dwc, an, T2inv
+            )
+        pr0[ramsey_mask] = self.simulator[self.RAMSEY](
+                t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc, an, T2inv
+            )
 
-            # we allow the ramsey pulse amplitude to be different from other experiments
-            if mode == self.RAMSEY and self.use_separate_ramsey_power:
-                wr = wrr
-
-            # simulate according to the simulator for the current mode
-            # the simulator should be vectorized with respect to the 
-            # last five arguments
-            pr0[:, idx_experiment] = self.simulator[mode](t, tau, phi, wr, we, dwc, an, T2inv)
-
-        return qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0)
+        return qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0.T)
 
 class ReferencedPoissonModel(qi.DerivedModel):
     """

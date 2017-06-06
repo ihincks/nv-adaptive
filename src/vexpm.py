@@ -256,7 +256,7 @@ def _vexpm(A, scale_power=0, pade_order=13, verbose=False):
         X = np.matmul(X, X)
     return X
         
-def vexpm(A, verbose=False):
+def vexpm(A, verbose=False, norm_multiplier=1):
     """
     This function treats the last two indeces of the input as matrices and
     performs matrix exponentiation on each, using only operations on the entire
@@ -283,6 +283,7 @@ def vexpm(A, verbose=False):
     # pade_order automatically by looking at the norms of A
     
     h = VectorizedMatrixExpHelper(A)
+    A_norm = norm_multiplier * h.max_d1
 
     if h.max_d1 < h.theta[3]:
         scale_power, pade_order = 0, 3
