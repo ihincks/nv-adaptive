@@ -47,6 +47,13 @@ import warnings
 
 import numpy as np
 
+#matmul = np.matmul
+def matmul(a, b):
+    out = np.empty_like(a)
+    for j in range(a.shape[0]):
+        out[j] = np.dot(a[j], b[j])
+    return out
+
 def _max_onenorm(A):
     """
     Treats last two indeces of A as matrices and returns 
@@ -96,23 +103,23 @@ class VectorizedMatrixExpHelper(object):
         return self._A
     @property
     def A2(self):
-        if self._A2 is None: self._A2 = np.matmul(self._A, self._A)
+        if self._A2 is None: self._A2 = matmul(self._A, self._A)
         return self._A2
     @property
     def A4(self):
-        if self._A4 is None: self._A4 = np.matmul(self.A2, self.A2)
+        if self._A4 is None: self._A4 = matmul(self.A2, self.A2)
         return self._A4
     @property
     def A6(self):
-        if self._A6 is None: self._A6 = np.matmul(self.A4, self.A2)
+        if self._A6 is None: self._A6 = matmul(self.A4, self.A2)
         return self._A6
     @property
     def A8(self):
-        if self._A8 is None: self._A8 = np.matmul(self.A4, self.A4)
+        if self._A8 is None: self._A8 = matmul(self.A4, self.A4)
         return self._A8
     @property
     def A10(self):
-        if self._A10 is None: self._A10 = np.matmul(self.A6, self.A4)
+        if self._A10 is None: self._A10 = matmul(self.A6, self.A4)
         return self._A10
 
     ## CACHED 1-NORMS ##########################################################
@@ -143,21 +150,21 @@ class VectorizedMatrixExpHelper(object):
     @property
     def pade3(self):
         b = (120., 60., 12., 1.)
-        U = np.matmul(self.A, b[3]*self.A2 + b[1]*self.I)
+        U = matmul(self.A, b[3]*self.A2 + b[1]*self.I)
         V = b[2]*self.A2 + b[0]*self.I
         return U, V    
     
     @property
     def pade5(self):
         b = (30240., 15120., 3360., 420., 30., 1.)
-        U = np.matmul(self.A, b[5]*self.A4 + b[3]*self.A2 + b[1]*self.I)
+        U = matmul(self.A, b[5]*self.A4 + b[3]*self.A2 + b[1]*self.I)
         V = b[4]*self.A4 + b[2]*self.A2 + b[0]*self.I
         return U, V
         
     @property
     def pade7(self):
         b = (17297280., 8648640., 1995840., 277200., 25200., 1512., 56., 1.)
-        U = np.matmul(
+        U = matmul(
                 self.A,
                 b[7]*self.A6 + b[5]*self.A4 + b[3]*self.A2 + b[1]*self.I
             )
@@ -170,7 +177,7 @@ class VectorizedMatrixExpHelper(object):
                 17643225600., 8821612800., 2075673600., 302702400., 
                 30270240., 2162160., 110880., 3960., 90., 1.
             )
-        U = np.matmul(
+        U = matmul(
                 self.A,
                 b[9]*self.A8 + b[7]*self.A6 + b[5]*self.A4 +
                 b[3]*self.A2 + b[1]*self.I
@@ -199,9 +206,9 @@ class VectorizedMatrixExpHelper(object):
                 2**(-6*s) * 1.
             )
         B6 = self.A6 * 2**(-6*s)
-        U2 = np.matmul(B6, b[13]*self.A6 + b[11]*self.A4 + b[9]*self.A2)
-        U = np.matmul(self.A * 2**-s, U2 + b[7]*self.A6 + b[5]*self.A4 + b[3]*self.A2 + b[1]*self.I)
-        V2 = np.matmul(B6, b[12]*self.A6 + b[10]*self.A4 + b[8]*self.A2)
+        U2 = matmul(B6, b[13]*self.A6 + b[11]*self.A4 + b[9]*self.A2)
+        U = matmul(self.A * 2**-s, U2 + b[7]*self.A6 + b[5]*self.A4 + b[3]*self.A2 + b[1]*self.I)
+        V2 = matmul(B6, b[12]*self.A6 + b[10]*self.A4 + b[8]*self.A2)
         V = V2 + b[6]*self.A6 + b[4]*self.A4 + b[2]*self.A2 + b[0]*self.I
         return U, V
     
@@ -253,7 +260,7 @@ def _vexpm(A, scale_power=0, pade_order=13, verbose=False):
     # scale and square
     X = np.linalg.solve(V-U, V+U)
     for i in range(int(scale_power)):
-        X = np.matmul(X, X)
+        X = matmul(X, X)
     return X
         
 def vexpm(A, verbose=False, norm_multiplier=1):
@@ -270,7 +277,7 @@ def vexpm(A, verbose=False, norm_multiplier=1):
     
     Implements "The Scaling and Squaring Method for the Matrix 
     Exponential Revisited", 2005, by Higham. There have been improvements 
-    to this algorithm since then, see for example Al-Moyy and Higham, 2009.
+    to this algorithm since then, see for example Al-Mohy and Higham, 2009.
     However, these improvements are much more tedious to program (though 
     certainly doable) and the present implementation suit my needs.
     

@@ -9,6 +9,7 @@ import scipy.io as sio
 from scipy.linalg import expm
 from scipy.special import xlogy, gammaln
 from vexpm import vexpm
+from vexpm import matmul
 from fractions import gcd as fgcd
 
 from glob import glob
@@ -40,6 +41,7 @@ HZ = 2 * np.pi * Sz
 GZ = 1j *(np.kron(HZ.T, np.eye(3)) - np.kron(np.eye(3), HZ))
 HZ2 = 2 * np.pi * Sz2
 GZ2 = 1j *(np.kron(HZ2.T, np.eye(3)) - np.kron(np.eye(3), HZ2))
+Gi = np.eye(9)
 
 class RepeatedOperator(object):
     def __init__(self, op):
@@ -75,7 +77,7 @@ def poisson_pdf(k, mu):
 ufgcd = np.frompyfunc(fgcd, 2, 1)
 def gcd(m):
     """Return the greatest common divisor of the given integers"""
-    return np.ufunc.reduce(ufgcd, m.astype(np.int))
+    return np.ufunc.reduce(ufgcd, np.round(m).astype(np.int))
 
 ## SIMULATORS ##################################################################
 
@@ -105,13 +107,13 @@ class CachedPropagator(object):
         if not self._propagator.has_key(bin_expansion):
             if not any(bin_expansion[1:]):
                 # in this case we have a power of 2, ex, bin_expansion = (1,0,0)
-                self._propagator[bin_expansion] = np.matmul(
+                self._propagator[bin_expansion] = matmul(
                         self.propagator(bin_expansion[:-1]), 
                         self.propagator(bin_expansion[:-1])
                     )
             else:
                 # recursion step
-                self._propagator[bin_expansion] = np.matmul(
+                self._propagator[bin_expansion] = matmul(
                         self.propagator((1,) + (0,)*(len(bin_expansion)-1)), 
                         self.propagator(bin_expansion[1:])
                     )
@@ -122,7 +124,9 @@ class CachedPropagator(object):
         """
         Returns an approximation of expm(time * generator)
         """
-        mult = int(time / self.base_timestep)
+        mult = int(np.round(time / self.base_timestep))
+        if mult == 0:
+            return np.repeat(np.eye(self.shape[-1])[np.newaxis,...],self.shape[0], axis=0)
         base2_expansion = map(lambda x: 0 if x == '0' else 1, np.base_repr(mult))
         return self.propagator(tuple(base2_expansion))
     
@@ -137,16 +141,68 @@ def rabi_cached(tp, tau, phi, wr, we, dwc, an, T2inv):
         + T2inv[:, np.newaxis, np.newaxis] * vecLz(n_models))
     # supergenerator for just nitrogen
     GA = an[:, np.newaxis, np.newaxis] * vecGz(n_models)
-    # simulate three nitrogen cases and average results
-    # note that preparing P0 and measuring P0 is equivalent to getting central element (4,4)
-    Sm = CachedPropagator(G1 - GA, base_timestep=base_timestep, max_expected_time=1)
-    S0 = CachedPropagator(G1, base_timestep=base_timestep, max_expected_time=1)
-    Sp = CachedPropagator(G1 + GA, base_timestep=base_timestep, max_expected_time=1)
+
+    Sm = CachedPropagator(G1 - GA, base_timestep=base_timestep, max_expected_time=.2)
+    S0 = CachedPropagator(G1, base_timestep=base_timestep, max_expected_time=.2)
+    Sp = CachedPropagator(G1 + GA, base_timestep=base_timestep, max_expected_time=.2)
 
     pr0 = np.empty((tp.size, wr.size))
     for idx_t, t in enumerate(tp):
         pr0[idx_t, :]  = np.real(Sm(t)[:, 4, 4] + S0(t)[:, 4, 4] + Sp(t)[:, 4, 4]) / 3
 
+    return pr0
+    
+def ramsey_cached(tp, tau, phi, wr, we, dwc, an, T2inv):
+    """
+    Return signal due to Ramsey experiment with
+    given parameters
+    """
+    n_models = wr.shape[0]
+    base_timestep_tp = gcd(tp * 1000) / 1000
+    base_timestep_tau = gcd(tau * 1000) / 1000
+    # hamiltonian without nitrogen during rabi
+    H1 = (wr[:, np.newaxis, np.newaxis] * vecSx(n_models) \
+        + we[:, np.newaxis, np.newaxis] * vecSz(n_models) \
+        + dwc[:, np.newaxis, np.newaxis] * vecSz2(n_models))
+    # hamiltonian for just nitrogen
+    HA = an[:, np.newaxis, np.newaxis] * vecSz(n_models)
+    # supergenerator during wait
+    G1 = (we[:, np.newaxis, np.newaxis] * vecGz(n_models) \
+        + dwc[:, np.newaxis, np.newaxis] * vecGz2(n_models) \
+        + T2inv[:, np.newaxis, np.newaxis] * vecLz(n_models))
+    # supergenerator for just nitrogen
+    GA = an[:, np.newaxis, np.newaxis] * vecGz(n_models)
+    
+    Sm = CachedPropagator(G1 - GA, base_timestep=base_timestep_tau, max_expected_time=4)
+    S0 = CachedPropagator(G1, base_timestep=base_timestep_tau, max_expected_time=4)
+    Sp = CachedPropagator(G1 + GA, base_timestep=base_timestep_tau, max_expected_time=4)
+    Um = CachedPropagator(H1 - HA, base_timestep=base_timestep_tp, max_expected_time=0.1)
+    U0 = CachedPropagator(H1, base_timestep=base_timestep_tp, max_expected_time=0.1)
+    Up = CachedPropagator(H1 + HA, base_timestep=base_timestep_tp, max_expected_time=0.1)
+    
+    pr0 = np.empty((tp.size, wr.size))
+    for idx_t in range(tp.size):
+        t1, t2 = tp[idx_t], tau[idx_t]
+
+        # states after square pulses
+        sm = Um(t1)[...,1]
+        s0 = U0(t1)[...,1]
+        sp = Up(t1)[...,1]
+        
+        # convert to vectorized density matrix
+        sm = np.repeat(sm.conj(), 3, axis=-1) * np.reshape(np.tile(sm, 3), (-1, 9))
+        sm = sm[...,np.newaxis]
+        s0 = np.repeat(s0.conj(), 3, axis=-1) * np.reshape(np.tile(s0, 3), (-1, 9))
+        s0 = s0[...,np.newaxis]
+        sp = np.repeat(sp.conj(), 3, axis=-1) * np.reshape(np.tile(sp, 3), (-1, 9))
+        sp = sp[...,np.newaxis]
+        
+        # sandwich wait between square pulses
+        p = matmul(sm.swapaxes(-2,-1), matmul(Sm(t2), sm))[...,0,0]
+        p = p + matmul(s0.swapaxes(-2,-1), matmul(S0(t2), s0))[...,0,0]
+        p = p + matmul(sp.swapaxes(-2,-1), matmul(Sp(t2), sp))[...,0,0]
+        
+        pr0[idx_t, :] = np.real(p) / 3
     return pr0
     
 def rabi(tp, tau, phi, wr, we, dwc, an, T2inv):
@@ -191,7 +247,7 @@ def ramsey(tp, tau, phi, wr, we, dwc, an, T2inv):
     pr0 = np.empty((tp.size, wr.size))
     for idx_t in range(tp.size):
         t1, t2 = tp[idx_t], tau[idx_t]
-        
+
         # states after square pulses
         sm = vexpm(t1 * (H1 - HA))[...,1]
         s0 = vexpm(t1 * H1)[...,1]
@@ -206,9 +262,9 @@ def ramsey(tp, tau, phi, wr, we, dwc, an, T2inv):
         sp = sp[...,np.newaxis]
         
         # sandwich wait between square pulses
-        p = np.matmul(sm.swapaxes(-2,-1), np.matmul(vexpm(t2 * (G1 - GA)), sm))[...,0,0]
-        p = p + np.matmul(s0.swapaxes(-2,-1), np.matmul(vexpm(t2 * G1), s0))[...,0,0]
-        p = p + np.matmul(sp.swapaxes(-2,-1), np.matmul(vexpm(t2 * (G1 + GA)), sp))[...,0,0]
+        p = matmul(sm.swapaxes(-2,-1), matmul(vexpm(t2 * (G1 - GA)), sm))[...,0,0]
+        p = p + matmul(s0.swapaxes(-2,-1), matmul(vexpm(t2 * G1), s0))[...,0,0]
+        p = p + matmul(sp.swapaxes(-2,-1), matmul(vexpm(t2 * (G1 + GA)), sp))[...,0,0]
         
         pr0[idx_t, :] = np.real(p) / 3
     return pr0
@@ -271,8 +327,8 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
         super(RabiRamseyModel, self).__init__()
 
         self.simulator = {
-            self.RABI:   rabi,
-            self.RAMSEY: ramsey
+            self.RABI:   rabi_cached,
+            self.RAMSEY: ramsey_cached
         }
 
         self._domain = qi.IntegerDomain(min=0, max=1)
@@ -345,12 +401,14 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
         
         # run both simulations
         pr0 = np.empty((expparams.shape[0], modelparams.shape[0]))
-        pr0[rabi_mask] = self.simulator[self.RABI](
-                t[rabi_mask], 0, 0, wr, we, dwc, an, T2inv
-            )
-        pr0[ramsey_mask] = self.simulator[self.RAMSEY](
-                t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc, an, T2inv
-            )
+        if rabi_mask.sum() > 0:
+            pr0[rabi_mask] = self.simulator[self.RABI](
+                    t[rabi_mask], 0, 0, wr, we, dwc, an, T2inv
+                )
+        if ramsey_mask.sum() > 0:
+            pr0[ramsey_mask] = self.simulator[self.RAMSEY](
+                    t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc, an, T2inv
+                )
 
         return qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0.T)
 
