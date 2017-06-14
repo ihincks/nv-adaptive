@@ -6,7 +6,7 @@ Project exploring adaptively choosing experiments for the NV center in diamond
 I recommend using conda, with an environment set up using:
 
 ```bash
-$ conda install nb_conda # Optional, exposes new environment to Jupyter.
+$ conda install nb_conda
 $ conda env create -f environment.yml
 ```
 
@@ -18,7 +18,7 @@ If you don't have them, use powershell install some relevant programs with:
 
     choco install git putty poshgit anaconda3
     
-this library can be installed using 
+Then `nv-adaptive` can be installed using 
 
     git clone git@github.com:ihincks/nv-adaptive.git
     cd nv-adaptive
@@ -28,6 +28,7 @@ this library can be installed using
 Then you can open up jupyter with
 
     cd src
+    source activate nvmeas
     jupyter notebook
     
 ### Note for Linux/OSX users:
