@@ -1,0 +1,13 @@
+name: nvmeas
+dependencies:
+  - python=2.7
+  - jupyter
+  - numpy
+  - scipy
+  - matplotlib
+  - ipyparallel
+  - dill
+  - future
+  - pip:
+    - git+https://github.com/QInfer/python-qinfer.git@7fcc27917e29
+
