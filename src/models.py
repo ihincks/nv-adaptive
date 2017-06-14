@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import division
 from functools import partial
+import warnings
 
 import qinfer as qi
 
@@ -64,7 +65,10 @@ vecSx = RepeatedOperator(-1j * 2 * np.pi * Sx)
 vecSyp = RepeatedOperator(-1j * 2 * np.pi * Syp)
 vecSz = RepeatedOperator(-1j * 2 * np.pi * Sz)
 vecSz2 = RepeatedOperator(-1j * 2 * np.pi * Sz2)   
-vecLz = RepeatedOperator(two_pi * (np.kron(Sz, Sz) - (np.kron(Sz2, Si) + np.kron(Si, Sz2)) / 2))
+vecLz = RepeatedOperator((np.kron(Sz, Sz) - (np.kron(Sz2, Si) + np.kron(Si, Sz2)) / 2))
+vecPhasePlus = RepeatedOperator(np.array([0,1,0,0,0,0,0,1,0]))
+vecPhaseMinus = RepeatedOperator(np.array([0,0,0,1,0,1,0,0,0]))
+vecPhaseNone = RepeatedOperator(np.array([1,0,1,0,1,0,1,0,1]))
 
 ## FUNCTIONS ###################################################################
 
@@ -197,7 +201,18 @@ def ramsey_cached(tp, tau, phi, wr, we, dwc, an, T2inv):
         sp = np.repeat(sp.conj(), 3, axis=-1) * np.reshape(np.tile(sp, 3), (-1, 9))
         sp = sp[...,np.newaxis]
         
+        # the euler angle qutrit decomposition 
+        # exp(a*(sin(phi)Sx + cos(phi)Syp)) = exp(-i*phi*Sz2).exp(a*Sx).exp(i*phi*Sz2)
+        # lets us avoid computing the matrix exp of both end pulses; we just need 
+        # to put the right phases on the state after the wait period
+        #exp_phi_p = np.exp(1j * phi[idx_t])
+        #exp_phi_m = exp_phi_p.conj()
+        #phases = np.array([[1,exp_phi_p,1,exp_phi_m,1,exp_phi_m,1,exp_phi_p,1]]).T
+
         # sandwich wait between square pulses
+        #p = matmul(sm.swapaxes(-2,-1), phases * matmul(Sm(t2), sm))[...,0,0]
+        #p = p + matmul(s0.swapaxes(-2,-1), phases * matmul(S0(t2), s0))[...,0,0]
+        #p = p + matmul(sp.swapaxes(-2,-1), phases * matmul(Sp(t2), sp))[...,0,0]
         p = matmul(sm.swapaxes(-2,-1), matmul(Sm(t2), sm))[...,0,0]
         p = p + matmul(s0.swapaxes(-2,-1), matmul(S0(t2), s0))[...,0,0]
         p = p + matmul(sp.swapaxes(-2,-1), matmul(Sp(t2), sp))[...,0,0]
@@ -349,7 +364,7 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
         
     @property
     def expparams_dtype(self):
-        return [('t', 'float'), ('tau', 'float'), ('phi', 'float'), ('emode', 'int')]
+        return [('t', 'float'), ('tau', 'float'), ('phi', 'float'), ('wo','float'), ('emode', 'int')]
         
     @property
     def is_n_outcomes_constant(self):
@@ -396,6 +411,11 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
         tau = expparams['tau'] 
         phi = expparams['phi']
         
+        # note that all wo have to be the same, this considerably simplifies simulator efficiency
+        wo = expparams['wo'][0] 
+        if not np.allclose(expparams['wo'], wo):
+            warnings.warn('In a given likelihood call, all carrier offsets must be identical')        
+        
         # figure out which experements are rabi and ramsey
         rabi_mask, ramsey_mask = mode == self.RABI, mode == self.RAMSEY
         
@@ -403,11 +423,11 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
         pr0 = np.empty((expparams.shape[0], modelparams.shape[0]))
         if rabi_mask.sum() > 0:
             pr0[rabi_mask] = self.simulator[self.RABI](
-                    t[rabi_mask], 0, 0, wr, we, dwc, an, T2inv
+                    t[rabi_mask], 0, 0, wr, we, dwc-wo, an, T2inv
                 )
         if ramsey_mask.sum() > 0:
             pr0[ramsey_mask] = self.simulator[self.RAMSEY](
-                    t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc, an, T2inv
+                    t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc-wo, an, T2inv
                 )
 
         return qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0.T)
