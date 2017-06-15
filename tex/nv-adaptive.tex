@@ -1,0 +1,147 @@
+\documentclass{quantumarticle}
+
+\usepackage{tikz} % Need to load explicitly in recent versions of {quantumarticle}.
+\usepackage[strict]{revquantum}   
+\usepackage[sort&compress,numbers,merge]{natbib}
+\usepackage[bold]{hhtensor}
+
+
+%% PATHS %%
+
+\newcommand{\figurefolder}{../fig}
+
+
+%% OTHER NOTATION %%
+
+% Normalize spelling, font decoration.
+\newrm{ess}
+
+
+% http://tex.stackexchange.com/a/112947/615
+\newcommand{\apxref}[1]{\hyperref[#1]{Appendix~\ref{#1}}}
+
+%=============================================================================
+% FRONT MATTER
+%=============================================================================
+
+\begin{document}
+
+\title{Online Magnetometry with NV Centers}
+
+\author{Ian Hincks}
+\affilUWAMath
+\affilIQC
+
+% new authors add your names
+
+\date{\today}
+
+\maketitle
+
+\begin{abstract}
+    Aliquam maximus sem ut imperdiet pulvinar. Donec ut sagittis metus, vitae congue risus. Vestibulum ut mi pharetra, commodo risus eget, consequat sapien. Integer vulputate dolor nec nisl sodales, quis condimentum nulla mollis. Curabitur molestie lacus eget accumsan elementum. 
+\end{abstract}
+
+
+%=============================================================================
+% MAIN DOCUMENT
+%=============================================================================
+
+
+
+%=============================================================================
+\section{Introduction}
+\label{sec:intro}
+%=============================================================================
+
+ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque quis tellus in lorem fermentum vehicula. Cras placerat ante arcu, vitae porta felis sodales ac. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Fusce turpis velit, mattis vel lectus nec, aliquam molestie ligula. Nam sollicitudin, urna cursus ultricies molestie, orci metus aliquet odio, vel consectetur augue tortor in neque. Donec posuere diam nec ligula laoreet fringilla. Proin diam dui, hendrerit eu tortor vel, ultrices maximus mi. Phasellus sodales finibus massa nec porttitor. Ut posuere tortor id ante lobortis iaculis at at ex. Phasellus in ligula suscipit, pulvinar est at, mollis est. Fusce rutrum pretium lacus commodo ultricies. In porttitor mi mauris, sollicitudin facilisis neque scelerisque at.
+
+
+%=============================================================================
+\section{Conclusions}
+\label{sec:conclusions}
+%=============================================================================
+
+Nulla commodo felis a est tincidunt porttitor. Praesent venenatis tellus eget ipsum tempus, sit amet tempus dui venenatis. Sed vel massa fermentum, cursus tellus ultricies, lacinia turpis. Donec rhoncus finibus semper. Pellentesque leo nunc, vehicula id tempor sit amet, tempus non nisi. Aliquam non faucibus nisi, quis dapibus odio. Duis ullamcorper nunc ultricies suscipit aliquam. Phasellus quis molestie eros, nec convallis justo. Integer massa diam, interdum quis diam ut, elementum luctus quam. Nullam interdum orci nec ultricies scelerisque. Praesent eget commodo tortor. In et risus vitae felis mollis hendrerit ut ac lacus. Maecenas congue sollicitudin erat, a eleifend nulla euismod ullamcorper. Nullam accumsan sodales metus. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae; Pellentesque feugiat quam at justo tincidunt euismod. 
+
+%=============================================================================
+% END MATTER
+%=============================================================================
+
+\acknowledgments{
+    
+}
+
+\nocite{apsrev41Control}
+\bibliographystyle{apsrev4-1}
+\bibliography{nv-adaptive}
+
+%=============================================================================
+% APPENDICES
+%=============================================================================
+
+\appendix
+\onecolumngrid
+
+%=============================================================================
+\section{Effective Strong Measurements}
+\label{apx:effective-strong-measurements}
+%=============================================================================
+
+Given a pre-measurement state $\rho$, information is accessed through the
+Born's probability $p=\Tr(\ketbra{0}\rho)$.
+In the hypothetical case of strong measurement, we would be able to draw from 
+the Bernoulli distribution $\bernoullidist(p)$, or more generally, with 
+$N$ repeated preparations and strong measurements, from 
+the binomial distribution $\binomialdist(N,p)$.
+
+Room temperature NV measurement does not allow strong measurements. 
+Instead, our access to the quantity $p$ is obstructed by three Poisson rates,
+such that conditional on some values $0<\beta<\alpha$, we can 
+draw from the random variables
+\begin{align}
+    X|\alpha &\sim \poissondist(\alpha) \nonumber \\
+    Y|\beta &\sim \poissondist(\beta) \nonumber \\
+    Z|\alpha,\beta,p &\sim \poissondist(p\alpha + (1-p)\beta).
+\end{align}
+The information content about $p$ of such a measurement is not as obvious, 
+and depends both on the magnitude of $\alpha$, as well as the contrast between 
+$\alpha$ and $\beta$.
+
+In this appendix, we introduce a measure we call the \textit{number of effective strong measurements} 
+given some values of $\alpha$ and $\beta$.
+This will allow us to make apples-to-apples comparisons between the obstructed
+Poisson coin measurement and the binomial strong measurement which was mentioned initially.
+It is important to stress that such comparisons are valid in the context of 
+information gain and statistical inference alone; physically, nothing 
+has changed, and the measurements are not strong.
+
+Our strategy is conceptually simple. Given some estimate of $p$ 
+made using variates of $X,Y,Z$, we calculate the number $N$ of strong measurements 
+that would hypothetically result in the same uncertainty about $p$.
+The word `uncertainty' is not precisely defined, and different interpretations 
+will lead to different values of $N$.
+At first, we consider the simplest case where the uncertainty is given by the variance 
+of the respective maximum likelihood estimators, averaged uniformly over $p\in[0,1]$.
+For the binomial case, this is easily computed as $\Var[\hat{p}]=p(1-p)/N$, equaling $1/6N$ when 
+averaged over $p$.
+For the referenced Poisson case, the Cramer-Rao bound provides a tight estimate 
+in most regimes of $\alpha$ and $\beta$, with a formula given by~\citep{hincks_statistical_2017}.
+\begin{equation}
+    \Var[\hat{p}]\approx\frac{p(p-1)\alpha+(p-1)(p-2)\beta}{(\alpha-\beta)^2}
+\end{equation}
+which has an average value of $\frac{5(\alpha+\beta)}{6(\alpha-\beta)^2}$.
+Equating these two variance formulas and solving for $N$ gives 
+\begin{equation}
+    N=\frac{(\alpha-\beta)^2}{5(\alpha+\beta)}
+\end{equation}
+which we define as the \textit{MLE number of effective strong measurements}.
+
+TODO: generalize this to a Bayesian setting when we can incorporate prior
+knowledge of $\alpha$ and $\beta$.
+Then we should see an approximation to the above formula for $N$ in the case
+of weak prior knowledge of $\alpha$ and $\beta$, and we should see an increase 
+in $N$ if we have more precise prior knowledge.
+The amount of increase is what I'm most interested in.
+
+\end{document}
