@@ -570,8 +570,8 @@ class ReferencedPoissonModel(qi.DerivedModel):
                 pr0 = np.tile(pr0, (outcomes.shape[0], 1))
 
                 # Reference Rate
-                alpha = expparam['n_meas'] * np.tile(modelparams[:, -2], (outcomes.shape[0], 1))
-                beta = expparam['n_meas'] * np.tile(modelparams[:, -1], (outcomes.shape[g0], 1))
+                alpha = np.tile(modelparams[:, -2], (outcomes.shape[0], 1))
+                beta = np.tile(modelparams[:, -1], (outcomes.shape[g0], 1))
 
                 # For each model parameter, turn this into an expected poisson rate
                 gamma = pr0 * alpha + (1 - pr0) * beta
@@ -582,7 +582,7 @@ class ReferencedPoissonModel(qi.DerivedModel):
             elif expparam['mode'] == self.BRIGHT:
 
                 # Reference Rate
-                alpha = expparam['n_meas'] * np.tile(modelparams[:, -2], (outcomes.shape[0], 1))
+                alpha = np.tile(modelparams[:, -2], (outcomes.shape[0], 1))
 
                 # The likelihood of getting each of the outcomes for each of the modelparams
                 L[:,:,idx_ep] = poisson_pdf(ot, alpha)
@@ -590,7 +590,7 @@ class ReferencedPoissonModel(qi.DerivedModel):
             elif expparam['mode'] == self.DARK:
 
                 # Reference Rate
-                beta = expparam['n_meas'] * np.tile(modelparams[:, -1], (outcomes.shape[0], 1))
+                beta = np.tile(modelparams[:, -1], (outcomes.shape[0], 1))
 
                 # The likelihood of getting each of the outcomes for each of the modelparams
                 L[:,:,idx_ep] = poisson_pdf(ot, beta)
@@ -618,17 +618,15 @@ class ReferencedPoissonModel(qi.DerivedModel):
                     ep)[0,:,0]
 
                 # Reference Rate
-                alpha = expparam['n_meas'] * modelparams[:, -2]
-                beta = expparam['n_meas'] * modelparams[:, -1]
-
-                print alpha, beta
+                alpha = modelparams[:, -2]
+                beta = modelparams[:, -1]
 
                 outcomes[:,:,idx_ep] = np.random.poisson(pr0 * alpha + (1 - pr0) * beta, size=(repeat, n_mps))
             elif expparam['mode'] == self.BRIGHT:
-                alpha = expparam['n_meas'] * modelparams[:, -2]
+                alpha = modelparams[:, -2]
                 outcomes[:,:,idx_ep] = np.random.poisson(alpha, size=(repeat, n_mps))
             elif expparam['mode'] == self.DARK:
-                beta = expparam['n_meas'] * modelparams[:, -1]
+                beta = modelparams[:, -1]
                 outcomes[:,:,idx_ep] = np.random.poisson(beta, size=(repeat, n_mps))
             else:
                 raise(ValueError('Unknown mode detected in ReferencedPoissonModel.'))
