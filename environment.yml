@@ -1,4 +1,4 @@
-name: nvmeas
+name: nvadapt
 dependencies:
   - python=2.7
   - jupyter
@@ -9,5 +9,5 @@ dependencies:
   - dill
   - future
   - pip:
-    - git+https://github.com/QInfer/python-qinfer.git@7fcc27917e29
+    - qinfer
 
