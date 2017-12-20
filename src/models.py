@@ -571,7 +571,7 @@ class ReferencedPoissonModel(qi.DerivedModel):
 
                 # Reference Rate
                 alpha = expparam['n_meas'] * np.tile(modelparams[:, -2], (outcomes.shape[0], 1))
-                beta = expparam['n_meas'] * np.tile(modelparams[:, -1], (outcomes.shape[g0], 1))
+                beta = expparam['n_meas'] * np.tile(modelparams[:, -1], (outcomes.shape[0], 1))
 
                 # For each model parameter, turn this into an expected poisson rate
                 gamma = pr0 * alpha + (1 - pr0) * beta
