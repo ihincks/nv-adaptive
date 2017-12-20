@@ -809,6 +809,11 @@ class TrackingHeuristic(qi.Heuristic):
         
         self.has_initial_reference = True
         
+    def _decide_on_tracking(self):
+        bright_est = self.updater.est_mean()[5]
+        return bright_est < self.cutoff * self._intial_bright_mean()
+        
+        
     def __call__(self, tp):
         if not self.has_initial_reference:
             raise RuntimeError('take_initial_reference must be called before an experiment can be suggested.')
