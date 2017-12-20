@@ -830,7 +830,7 @@ class TrackingHeuristic(qi.Heuristic):
         
     def _decide_on_tracking(self):
         bright_est = self.updater.est_mean()[5]
-        bright_std = self.update.est_covariance_mtx()[5,5]
+        bright_std = self.updater.est_covariance_mtx()[5,5]
         return bright_est + 1.5 * bright_std < self._initial_bright_mean - 1.5 * self._initial_bright_std
         
         
