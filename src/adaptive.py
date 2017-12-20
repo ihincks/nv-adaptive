@@ -11,6 +11,7 @@ import models as m
 import datetime
 import dateutil
 from pandas import DataFrame, Panel, Timestamp, Timedelta, read_pickle
+import wquantiles
 
 
 #-------------------------------------------------------------------------------
@@ -27,6 +28,10 @@ SOME_PRIOR = qi.UniformDistribution(np.array([
         
 def get_now():
     return Timestamp(datetime.datetime.now())
+    
+#-------------------------------------------------------------------------------
+# FUNCTIONS
+#-------------------------------------------------------------------------------
         
 #-------------------------------------------------------------------------------
 # DATA STORAGE
@@ -72,6 +77,8 @@ def new_experiment_dataframe(heuristic):
     `smc_mean`:         Mean value of updater.
     `smc_cov`:          Covariance matrix of updater.
     `smc_n_eff_particles`:    Number of effective particles in updater.
+    `smc_upper_quantile`:     Upper 0.95 quantile of the paramaters.
+    `smc_lower_quantile`:     Lower 0.95 quantile of the parameters.
     `smc_resample_count`:     Number of resamples done by updater so far.
     
     :param qinfer.Heuristic updater: By convention, it is nice to store 
@@ -87,7 +94,8 @@ def new_experiment_dataframe(heuristic):
             'preceded_by_tracking',
             'eff_num_bits', 'cum_eff_num_bits',
             'heuristic', 'heuristic_value',
-            'smc_mean', 'smc_cov', 'smc_n_eff_particles', 'smc_resample_count'
+            'smc_mean', 'smc_cov', 'smc_n_eff_particles', 'smc_resample_count',
+            'smc_upper_quantile', 'smc_lower_quantile'
         ])
     df = append_experiment_data(df, heuristic=heuristic, preceded_by_tracking=True)
     
@@ -155,6 +163,16 @@ def append_experiment_data(
     if updater is not None:
         data['smc_mean'] = updater.est_mean()
         data['smc_cov'] = updater.est_covariance_mtx()
+        data['smc_lower_quantile'] = wquantiles.quantile(
+            heuristic.updater.particle_locations.T,
+            heuristic.updater.particle_weights,
+            0.05
+        )
+        data['smc_upper_quantile'] = wquantiles.quantile(
+            heuristic.updater.particle_locations.T,
+            heuristic.updater.particle_weights,
+            0.95
+        )
         data['smc_n_eff_particles'] = updater.n_ess
         data['smc_resample_count'] = updater.resample_count
         if first_row:
