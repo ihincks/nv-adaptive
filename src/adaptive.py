@@ -9,7 +9,7 @@ import numpy as np
 import models as m
 import datetime
 import dateutil
-from pandas import DataFrame, Panel, Timestamp, Timedelta
+from pandas import DataFrame, Panel, Timestamp, Timedelta, read_pickle
 
 
 #-------------------------------------------------------------------------------
@@ -31,7 +31,7 @@ def get_now():
 # DATA STORAGE
 #-------------------------------------------------------------------------------
 
-def new_experiment_dataframe(updater):
+def new_experiment_dataframe(heuristic):
     """
     Returns an empty `pandas.DataFrame` to store data from 
     a single run of a single heuristic. Rows of this data 
@@ -73,7 +73,7 @@ def new_experiment_dataframe(updater):
     `smc_n_eff_particles`:    Number of effective particles in updater.
     `smc_resample_count`:     Number of resamples done by updater so far.
     
-    :param qinfer.SMCUpdater updater: By convention, it is nice to store 
+    :param qinfer.Heuristic updater: By convention, it is nice to store 
         what's going on before any data have arrived.
     """
     df = DataFrame(
@@ -88,7 +88,7 @@ def new_experiment_dataframe(updater):
             'heuristic', 'heuristic_value',
             'smc_mean', 'smc_cov', 'smc_n_eff_particles', 'smc_resample_count'
         ])
-    df = append_experiment_data(df, updater=updater, preceded_by_tracking=True)
+    df = append_experiment_data(df, heuristic=heuristic, preceded_by_tracking=True)
     
     return df
     
@@ -123,7 +123,7 @@ def compute_eff_num_bits(n_meas, updater):
 
 def append_experiment_data(
         dataframe, 
-        expparam=None, updater=None, 
+        expparam=None, heuristic=None, 
         result=None, job=None, 
         preceded_by_tracking=False, heuristic_value=None
     ):
@@ -132,13 +132,12 @@ def append_experiment_data(
     the new object.
     
     :param DataFrame dataframe: See `new_experiment_dataframe`.
-    :param np.ndarray expparam: Of dtype `updater.model.expparam_dtype`
+    :param np.ndarray expparam: Of dtype `heuristic.updater.model.expparam_dtype`
     :param ExperimentResult result: Result of the experiment. This is 
         overwritted by job.get_result() if it exists. Normally parameter 
         should not be input, and instead `job.get_result()` should be used.
     :param AbstractExperimentJob job: Job that was run.
-    :param bool preceded_by_tracking: Whether or not we tracked directly prior to 
-        the experiment.
+    :param qi.Heuristic heuristic: Heuristic, containing the updater.
     :param heuristic_value: Whatever we want to store here, depends on 
         heuristic.
     """
@@ -146,6 +145,12 @@ def append_experiment_data(
     first_row = n_rows == 0
     data = {'heuristic_value': heuristic_value}
     
+    if heuristic is not None:
+        updater = heuristic.updater
+        data['heuristic'] = heuristic.name
+    else:
+        updater = None
+        
     if updater is not None:
         data['smc_mean'] = updater.est_mean()
         data['smc_cov'] = updater.est_covariance_mtx()
@@ -216,7 +221,41 @@ def append_experiment_data(
         
     return dataframe.append(data, ignore_index=True)
         
+class HeuristicData(object):
+    """
+    Stores the data from trials of a single heuristic into a pandas.Panel
+    of DataFrames, as constructed with new_experiment_dataframe and 
+    append_experiment_data.
+    """
+    def __init__(self, filename):
+        self._filename = filename
+        try:
+            panel = read_pickle(filename)
+            self._df_dict = dict(panel)
+            print 'Imported existing Panel with {} DataFrames from {}'.format(
+                self.n_dataframes, filename
+            )
+        except:
+            print 'Created empty Panel.'
+            self._df_dict = {}
+        
+    def append(self, dataframe):
+        self._df_dict[self.n_dataframes] = dataframe
     
+    @property 
+    def n_dataframes(self):
+        return len(self._df_dict)
+    
+    @property
+    def filename(self):
+        return self._filename
+    
+    @property    
+    def panel(self):
+        return Panel(self._df_dict)
+        
+    def save(self)
+        self.panel.to_pickle(self.filename)
 
 #-------------------------------------------------------------------------------
 # SWEEP EXPPARAMS
@@ -511,7 +550,7 @@ class RealRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
         self._meas_time = 800e-9
         self._center_freq = 2.87e9
         self._intermediate_freq = 0
-        self._adiabatic_power = -12
+        self._adiabatic_power = -2
 
     def run_tracking(self):
         raise NotImplemented()
@@ -680,3 +719,96 @@ class LinearHeuristic(qi.Heuristic):
         eps =  np.array([all_eps[self._idx]])
         self._idx += 1
         return eps
+        
+def TrackingHeuristic(qi.Heuristic):
+    """
+    Wraps an existing heuristic, so that calling it returns a tuple 
+    (eps, precede_by_tracking) where eps is the experiment that the underlying
+    heuristic wants.
+    
+    Also introduces the idea of an initial reference experiment, which
+    sets an empirical prior on the reference coordinates of the distribution.
+    
+    :param qinfer.Heuristic heuristic: The heuristic to wrap.
+    :param float cutoff: How far below the initial bright reference we can 
+        drop before demanding a tracking operation.
+    :param bool track_on_initial_reference: Whether to precede the initial 
+        reference taking by a tracking operation.
+    :param float std_mult: How much bigger than 1 standard deviation we
+        should set the reference prior to.
+    """
+    def __init__(self, heuristic, cutoff=0.85, track_on_initial_reference=True, std_mult=3):
+        self.underlying_heuristic = heuristic
+        self.cutoff = cutoff
+        self.has_initial_reference = False
+        self.track_on_initial_reference = track_on_initial_reference
+        self.std_mult = std_mult
+        
+        self._initial_bright_mean = None
+        self._initial_dark_mean = None
+        self._initial_bright_std = None
+        self._initial_dark_std = None
+        
+    def updater(self):
+        return self.underlying_heuristic.updater
+        
+    def name(self):
+        return self.underlying_heuristic.name + ' (with tracking)'
+        
+    def reset_reference_prior(self):
+        """
+        Resets the alpha and beta coordinates of the updater to an empirical
+        gamma distribution based on the initial reference taking.
+        """
+        if self.has_initial_reference:
+            dist = qi.ProductDistribution(
+                qi.GammaDistribution(
+                    mean=self._initial_bright_mean, 
+                    var=(self.std_mult * self._initial_bright_std)**2
+                ),
+                qi.GammaDistribution(
+                    mean=self._initial_dark_mean, 
+                    var=(self.std_mult * self._initial_dark_std)**2
+                )
+            )
+            samples = dist.sample(self.updater.n_particles)
+            self.updater.particle_locations[5:7] = samples
+        else:
+            warnings.warn('Reference experiment has not been made yet; call `take_initial_reference`')
+        
+    def take_initial_reference(self, experiment, n_meas=300000, n_repetitions=1):
+        """
+        Runs a job to set the initial distribution on the reference prior, 
+        and to 
+        """
+        eps = rabi_sweep(0, n=1, n_meas=n_meas)
+        counts = np.array((n_repetitions, 3))
+        for idx_repetition in range(n_repetitions)
+            if idx_repetition == 0:
+                precede_by_tracking = self.track_on_initial_reference 
+            else:
+                precede_by_tracking = False
+            job = experiment.run_experiment(eps, precede_by_tracking)
+            while not job.is_complete:
+                sleep(0.4)
+            counts(idx_repetition, :) = job.result.triplet
+            
+        bright, dark, signal = np.sum(counts, axis=0)
+        # bright and signal are the same experiment since there is no
+        # pulsing, so we might as well use the data (bright+signal)
+        bright = bright + signal
+        self._initial_bright = bright / (2 * n_meas * n_repetitions)
+        self._initial_dark = dark / (n_meas * n_repetitions)
+        self._initial_bright_std = np.sqrt(bright) / (2 * n_meas * n_repetitions)
+        self._initial_dark_std = np.sqrt(dark) / (n_meas * n_repetitions)
+        
+        self.reset_reference_prior()
+        
+        self.has_initial_reference = True
+        
+    def __call__(self, tp):
+        if not self.has_initial_reference:
+            raise RuntimeError('take_initial_reference must be called before an experiment can be suggested.')
+        eps = self.underlying_heuristic(tp)
+        precede_by_tracking = self._decide_on_tracking()
+        return eps, precede_by_tracking
