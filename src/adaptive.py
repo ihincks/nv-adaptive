@@ -593,6 +593,7 @@ class RealRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
             eps['pulse2_time'] = 1e-6 * expparam['t']
             eps['pulse2_phase'] = expparam['phi']
         eps['center_freq'] = eps['center_freq'] - 1e6 * expparam['wo']
+        eps['number_of_repetitions'] = expparam['n_meas']
         
         if precede_by_tracking:
             eps['precede_by_tracking'] = True
@@ -775,7 +776,7 @@ class TrackingHeuristic(qi.Heuristic):
                 )
             )
             samples = dist.sample(self.updater.n_particles)
-            self.updater.particle_locations[5:7] = samples
+            self.updater.particle_locations[:,5:7] = samples
         else:
             warnings.warn('Reference experiment has not been made yet; call `take_initial_reference`')
         
@@ -800,8 +801,8 @@ class TrackingHeuristic(qi.Heuristic):
         # bright and signal are the same experiment since there is no
         # pulsing, so we might as well use the data (bright+signal)
         bright = bright + signal
-        self._initial_bright = bright / (2 * n_meas * n_repetitions)
-        self._initial_dark = dark / (n_meas * n_repetitions)
+        self._initial_bright_mean = bright / (2 * n_meas * n_repetitions)
+        self._initial_dark_mean = dark / (n_meas * n_repetitions)
         self._initial_bright_std = np.sqrt(bright) / (2 * n_meas * n_repetitions)
         self._initial_dark_std = np.sqrt(dark) / (n_meas * n_repetitions)
         
@@ -811,7 +812,7 @@ class TrackingHeuristic(qi.Heuristic):
         
     def _decide_on_tracking(self):
         bright_est = self.updater.est_mean()[5]
-        return bright_est < self.cutoff * self._intial_bright_mean()
+        return bright_est < self.cutoff * self._initial_bright_mean
         
         
     def __call__(self, tp):
