@@ -3,6 +3,7 @@ from __future__ import division
 from future.utils import with_metaclass
 import warnings
 import abc
+from time import sleep
 
 import qinfer as qi
 import numpy as np
@@ -254,7 +255,7 @@ class HeuristicData(object):
     def panel(self):
         return Panel(self._df_dict)
         
-    def save(self)
+    def save(self):
         self.panel.to_pickle(self.filename)
 
 #-------------------------------------------------------------------------------
@@ -720,7 +721,7 @@ class LinearHeuristic(qi.Heuristic):
         self._idx += 1
         return eps
         
-def TrackingHeuristic(qi.Heuristic):
+class TrackingHeuristic(qi.Heuristic):
     """
     Wraps an existing heuristic, so that calling it returns a tuple 
     (eps, precede_by_tracking) where eps is the experiment that the underlying
@@ -749,9 +750,11 @@ def TrackingHeuristic(qi.Heuristic):
         self._initial_bright_std = None
         self._initial_dark_std = None
         
+    @property
     def updater(self):
         return self.underlying_heuristic.updater
         
+    @property
     def name(self):
         return self.underlying_heuristic.name + ' (with tracking)'
         
@@ -782,8 +785,8 @@ def TrackingHeuristic(qi.Heuristic):
         and to 
         """
         eps = rabi_sweep(0, n=1, n_meas=n_meas)
-        counts = np.array((n_repetitions, 3))
-        for idx_repetition in range(n_repetitions)
+        counts = np.empty((n_repetitions, 3))
+        for idx_repetition in range(n_repetitions):
             if idx_repetition == 0:
                 precede_by_tracking = self.track_on_initial_reference 
             else:
@@ -791,7 +794,7 @@ def TrackingHeuristic(qi.Heuristic):
             job = experiment.run_experiment(eps, precede_by_tracking)
             while not job.is_complete:
                 sleep(0.4)
-            counts(idx_repetition, :) = job.result.triplet
+            counts[idx_repetition, :] = job.get_result().triplet
             
         bright, dark, signal = np.sum(counts, axis=0)
         # bright and signal are the same experiment since there is no
