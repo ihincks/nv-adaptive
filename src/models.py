@@ -672,7 +672,7 @@ class BridgedRPMUpdater(qi.SMCUpdater):
         # note that we may not be giving it an integer outcome, but poisson_pdf can handle it
         divided_expparams = expparams.copy()
         divided_expparams['n_meas'] = divided_expparams['n_meas'] / data_divider
-        weights, norm = self.hypothetical_update(outcome / data_divider, expparams, return_normalization=True)
+        weights, norm = self.hypothetical_update(outcome / data_divider, divided_expparams, return_normalization=True)
         weight_sum = np.sum(weights[0,0,:]**2)
         if weight_sum > 0:
             n_ess = 1 / weight_sum
