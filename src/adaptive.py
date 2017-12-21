@@ -385,6 +385,7 @@ class DataFrameLiveView(object):
         
         DataFrameLiveView.update_line(axis_rabi.lines[0], sim_ts, simulation)
         DataFrameLiveView.update_line(axis_rabi.lines[1], ts, rabi_p)
+        axis_rabi.set_xlim([0, np.amax(sim_ts)])
                                       
         ts = eps_ramsey['tau']
         max_t = 0 if ts.size == 0 else np.amax(ts)
@@ -397,6 +398,7 @@ class DataFrameLiveView(object):
         
         DataFrameLiveView.update_line(axis_ramsey.lines[0], sim_ts, simulation)
         DataFrameLiveView.update_line(axis_ramsey.lines[1], ts, ramsey_p)
+        axis_ramsey.set_xlim([0, np.amax(sim_ts)])
         
         
     def draw_from_scratch(self):
