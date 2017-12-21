@@ -722,8 +722,8 @@ class ExponentialHeuristic(qi.Heuristic):
 class LinearHeuristic(qi.Heuristic):
     def __init__(self, updater, max_t=0.3, max_tau=2, n=50, n_meas=100, name=None):
         self.updater = updater
-        self._rabi_eps = rabi_sweep(max_t=1, n=n, n_meas=n_meas)
-        self._ramsey_eps = ramsey_sweep(max_tau=1, n=n, n_meas=n_meas)
+        self._rabi_eps = rabi_sweep(max_t=max_t, n=n, n_meas=n_meas)
+        self._ramsey_eps = ramsey_sweep(max_tau=max_tau, n=n, n_meas=n_meas)
         
         self._rabi_eps['t'] = np.round(self._rabi_eps['t'] / 0.002) * 0.002
         self._ramsey_eps['tau'] = np.round(self._ramsey_eps['tau'] / 0.002) * 0.002
