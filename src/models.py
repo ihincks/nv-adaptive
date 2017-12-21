@@ -673,7 +673,11 @@ class BridgedRPMUpdater(qi.SMCUpdater):
         divided_expparams = expparams.copy()
         divided_expparams['n_meas'] = divided_expparams['n_meas'] / data_divider
         weights, norm = self.hypothetical_update(outcome / data_divider, expparams, return_normalization=True)
-        n_ess = 1 / (np.sum(weights[0,0,:]**2))
+        weight_sum = np.sum(weights[0,0,:]**2)
+        if weight_sum > 0:
+            n_ess = 1 / weight_sum
+        else:
+            n_ess = 0
 
         # Check for negative weights           
         if not np.all(weights >= 0):
