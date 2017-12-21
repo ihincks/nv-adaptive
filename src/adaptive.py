@@ -3,6 +3,8 @@ from __future__ import division
 from future.utils import with_metaclass
 import warnings
 import abc
+import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
 from time import sleep
 
 import qinfer as qi
@@ -32,7 +34,33 @@ def get_now():
 #-------------------------------------------------------------------------------
 # FUNCTIONS
 #-------------------------------------------------------------------------------
-        
+    
+def add_counts_by_unique_expparams(df):
+    # need to hash the expparams for pandas to group them
+    groups = df[1:].groupby(df[1:].expparam.apply(lambda x: '{}'.format(x)))
+    
+    bright = np.array(list(groups['bright'].sum()))
+    dark = np.array(list(groups['dark'].sum()))
+    signal = np.array(list(groups['signal'].sum()))
+    
+    eps = np.array(list(groups['expparam'].first())).flatten()
+    
+    return eps, bright, dark, signal
+
+def normalized_signal_by_unique_expparams(df):
+    eps, bright, dark, signal = add_counts_by_unique_expparams(df)
+    return eps, (signal - dark).astype(float) / (bright - dark)
+
+def normalized_and_separated_signal(df):
+    eps, p = normalized_signal_by_unique_expparams(df)
+    rabi_idx = eps['emode'] == m.RabiRamseyModel.RABI
+    rabi_eps = eps[rabi_idx]
+    rabi_p = p[rabi_idx]
+    ramsey_idx = np.logical_not(rabi_idx)
+    ramsey_eps = eps[ramsey_idx]
+    ramsey_p = p[ramsey_idx]
+    return rabi_eps, rabi_p, ramsey_eps, ramsey_p    
+    
 #-------------------------------------------------------------------------------
 # DATA STORAGE
 #-------------------------------------------------------------------------------
@@ -275,6 +303,214 @@ class HeuristicData(object):
         
     def save(self):
         self.panel.to_pickle(self.filename)
+        
+class DataFrameLiveView(object):
+    def __init__(self, dataframe):
+        self.df = dataframe
+        self.ham_model = m.RabiRamseyModel()
+        self.ref_model = m.ReferencedPoissonModel(self.ham_model)
+        
+        self.draw_from_scratch()
+        
+    @staticmethod
+    def update_fill_between(collection, x_vals, lower, upper):
+        path_x = np.concatenate([x_vals[0,np.newaxis], x_vals, x_vals[::-1]])
+        path_y = np.concatenate([lower[0,np.newaxis], upper, lower[::-1]])
+        collection.set_paths([np.vstack([path_x,path_y]).T])
+        
+    @staticmethod
+    def update_line(line, x_vals, y_vals):
+        line.set_xdata(x_vals)
+        line.set_ydata(y_vals)
+        
+    def update(self):
+        self.update_ref(self.axes[0])
+        self.update_rabi(self.axes[1])
+        self.update_ramsey(self.axes[2])
+        self.update_simulations(self.axes[3], self.axes[4])
+        self.fig.canvas.draw()
+        
+    def update_ref(self, axis):
+        df = self.df
+        
+        # estimates
+        bright_means, dark_means = (np.array(list(df['smc_mean']))[:,5:7]).T
+        x_vals = np.arange(bright_means.size)
+        DataFrameLiveView.update_line(axis.lines[0], x_vals, bright_means)
+        DataFrameLiveView.update_line(axis.lines[1], x_vals, dark_means)
+            
+        # credible regions
+        bright_upper, dark_upper = (np.array(list(df['smc_upper_quantile']))[:,5:7]).T
+        bright_lower, dark_lower = (np.array(list(df['smc_lower_quantile']))[:,5:7]).T
+        DataFrameLiveView.update_fill_between(axis.collections[0], x_vals, bright_lower, bright_upper)
+        DataFrameLiveView.update_fill_between(axis.collections[1], x_vals, dark_lower, dark_upper)
+        
+        # data
+        x_vals = x_vals[1:]
+        for idx, label in enumerate(['bright', 'dark']):
+            data = np.array(df[label][1:]).astype(float) / np.array(df['n_meas'][1:]).astype(float)
+            DataFrameLiveView.update_line(axis.lines[idx+2], x_vals, data)
+            
+    def update_rabi(self, axis):
+        idx_param = self.ham_model.IDX_OMEGA
+        means = np.array(list(self.df['smc_mean']))[:,idx_param]
+        x_vals = np.arange(means.size)
+        DataFrameLiveView.update_line(axis.lines[0], x_vals, means)
+        
+        upper = np.array(list(self.df['smc_lower_quantile']))[:,idx_param]
+        lower = np.array(list(self.df['smc_upper_quantile']))[:,idx_param]
+        DataFrameLiveView.update_fill_between(axis.collections[0], x_vals, lower, upper)
+        
+    def update_ramsey(self, axis):
+        idx_param = self.ham_model.IDX_ZEEMAN
+        means = np.array(list(self.df['smc_mean']))[:,idx_param]
+        x_vals = np.arange(means.size)
+        DataFrameLiveView.update_line(axis.lines[0], x_vals, means)
+        
+        upper = np.array(list(self.df['smc_lower_quantile']))[:,idx_param]
+        lower = np.array(list(self.df['smc_upper_quantile']))[:,idx_param]
+        DataFrameLiveView.update_fill_between(axis.collections[0], x_vals, lower, upper)
+        
+    def update_simulations(self, axis_rabi, axis_ramsey):
+        eps_rabi, rabi_p, eps_ramsey, ramsey_p = normalized_and_separated_signal(self.df)
+        
+        ts = eps_rabi['t']
+        max_t = 0 if ts.size == 0 else np.amax(ts)
+        sim_ts = np.linspace(0, max(max_t,0.2), 100)
+        sim_eps = rabi_sweep(1, n=100)
+        sim_eps['t'] = sim_ts
+        simulation =  self.ham_model.likelihood(0,
+            self.df['smc_mean'][self.df.shape[0]-1][np.newaxis,:5], sim_eps
+        ).flatten()
+        
+        DataFrameLiveView.update_line(axis_rabi.lines[0], sim_ts, simulation)
+        DataFrameLiveView.update_line(axis_rabi.lines[1], ts, rabi_p)
+                                      
+        ts = eps_ramsey['tau']
+        max_t = 0 if ts.size == 0 else np.amax(ts)
+        sim_ts = np.linspace(0, max(max_t,0.2), 100)
+        sim_eps = ramsey_sweep(1, n=100)
+        sim_eps['tau'] = sim_ts
+        simulation = self.ham_model.likelihood(0,
+            self.df['smc_mean'][self.df.shape[0]-1][np.newaxis,:5],sim_eps
+        ).flatten()
+        
+        DataFrameLiveView.update_line(axis_ramsey.lines[0], sim_ts, simulation)
+        DataFrameLiveView.update_line(axis_ramsey.lines[1], ts, ramsey_p)
+        
+        
+    def draw_from_scratch(self):
+        df = self.df
+        
+        fig = plt.figure(figsize=(10,7))
+        
+        gs = gridspec.GridSpec(3,1,left=0,bottom=0,right=0.4,top=1)
+        ax_ramsey = fig.add_subplot(gs[2,0])
+        ax_ref = fig.add_subplot(gs[0,0], sharex=ax_ramsey)
+        ax_rabi = fig.add_subplot(gs[1,0], sharex=ax_ramsey)
+        plt.setp(ax_ref.get_xticklabels(), visible=False)
+        plt.setp(ax_rabi.get_xticklabels(), visible=False)
+
+        gs2 = gridspec.GridSpec(2,1,left=0.4,right=1,bottom=0,top=1)
+        ax_ramsey_sim = fig.add_subplot(gs2[1,0])
+        ax_rabi_sim = fig.add_subplot(gs2[0,0])
+
+
+
+        #----------------------------------------------------------------
+        # draw references
+        #----------------------------------------------------------------
+        plt.sca(ax_ref)
+        for idx_param in range(5,7):
+            plt.plot(np.array(list(df['smc_mean']))[:,idx_param])
+            plt.fill_between(
+                np.arange(np.array(list(df['smc_mean'])).shape[0]),
+                np.array(list(df['smc_lower_quantile']))[:,idx_param],
+                np.array(list(df['smc_upper_quantile']))[:,idx_param],
+                alpha=0.3
+            )
+        plt.plot(
+            np.arange(1,df.shape[0]), 
+            np.array(df['bright'][1:]).astype(float)/np.array(df['n_meas'][1:]).astype(float),
+            '.',
+            label='Normalized Bright Counts'
+        )
+        plt.plot(
+            np.arange(1,df.shape[0]), 
+            np.array(df['dark'][1:]).astype(float)/np.array(df['n_meas'][1:]).astype(float),
+            '.',
+            label='Normalized Dark Counts'
+        )
+        plt.ylabel('References\nPhotons per Shot') 
+
+        #----------------------------------------------------------------
+        # draw rabi learning
+        #----------------------------------------------------------------
+        plt.sca(ax_rabi)
+        idx_param=0
+        plt.plot(np.array(list(df['smc_mean']))[:,idx_param])
+        plt.fill_between(
+            np.arange(np.array(list(df['smc_mean'])).shape[0]),
+            np.array(list(df['smc_lower_quantile']))[:,idx_param],
+            np.array(list(df['smc_upper_quantile']))[:,idx_param],
+            alpha=0.3
+        )
+        plt.ylabel('${}$ (MHz)'.format(self.ham_model.modelparam_names[idx_param]))
+
+        #----------------------------------------------------------------
+        # draw ramsey learning
+        #----------------------------------------------------------------
+        plt.sca(ax_ramsey)
+        idx_param=1
+        plt.plot(np.array(list(df['smc_mean']))[:,idx_param])
+        plt.fill_between(
+            np.arange(np.array(list(df['smc_mean'])).shape[0]),
+            np.array(list(df['smc_lower_quantile']))[:,idx_param],
+            np.array(list(df['smc_upper_quantile']))[:,idx_param],
+            alpha=0.3
+        )
+        plt.ylabel('${}$ (MHz)'.format(self.ham_model.modelparam_names[idx_param]))
+        plt.xlabel('Number of Experiments')
+        plt.xlim([0,100])
+
+        #----------------------------------------------------------------
+        # draw rabi simulation
+        #----------------------------------------------------------------
+        plt.sca(ax_rabi_sim)
+        eps_rabi, rabi_p, eps_ramsey, ramsey_p = normalized_and_separated_signal(df)
+        ts = eps_rabi['t']
+        max_t = 0 if ts.size == 0 else np.amax(ts)
+        sim_ts = np.linspace(0, max(max_t,0.2), 100)
+        sim_eps = rabi_sweep(1, n=100)
+        sim_eps['t'] = sim_ts
+        plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
+        plt.plot(ts, rabi_p, '.')
+        plt.ylim([-0.05,1.05])
+        plt.title('Rabi Experiment and Best Simulation')
+        plt.xlabel('$t_p$ ($\mu$s)')
+        plt.ylabel(r'Tr$(\rho|0\rangle\langle 0|)$')
+
+        #----------------------------------------------------------------
+        # draw ramsey simulation
+        #----------------------------------------------------------------
+        plt.sca(ax_ramsey_sim)
+        ts = eps_ramsey['tau']
+        max_t = 0 if ts.size == 0 else np.amax(ts)
+        sim_ts = np.linspace(0, max(max_t,0.2), 100)
+        sim_eps = ramsey_sweep(1, n=100)
+        sim_eps['tau'] = sim_ts
+        plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
+        plt.plot(ts, ramsey_p, '.')
+        plt.ylim([-0.05,1.05])
+        plt.title('Ramsey Experiment and Best Simulation')
+        plt.xlabel('$\tau$ ($\mu$s)')
+        plt.ylabel(r'Tr$(\rho|0\rangle\langle 0|)$')
+
+        gs.tight_layout(fig, h_pad=0.1, rect=(0,0,0.5,1))
+        gs2.tight_layout(fig, rect=(0.5,0,1,1))
+        
+        self.fig = fig
+        self.axes = [ax_ref, ax_rabi, ax_ramsey, ax_rabi_sim, ax_ramsey_sim]
 
 #-------------------------------------------------------------------------------
 # SWEEP EXPPARAMS
