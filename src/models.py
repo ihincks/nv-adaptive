@@ -472,10 +472,10 @@ class ReferencedPoissonModel(qi.DerivedModel):
         if isinstance(underlying_model.expparams_dtype, str):
             # We default to calling the original experiment parameters "p".
             self._expparams_scalar = True
-            self._expparams_dtype = [('p', underlying_model.expparams_dtype), ('mode', 'int'), ('n_meas','int')]
+            self._expparams_dtype = [('p', underlying_model.expparams_dtype), ('mode', 'int'), ('n_meas','float')]
         else:
             self._expparams_scalar = False
-            self._expparams_dtype = underlying_model.expparams_dtype + [('mode', 'int'), ('n_meas','int')]
+            self._expparams_dtype = underlying_model.expparams_dtype + [('mode', 'int'), ('n_meas','float')]
 
         # The domain for any mode of an experiment is all of the non-negative integers
         self._domain = qi.IntegerDomain(min=0, max=1e6)
@@ -667,14 +667,12 @@ class BridgedRPMUpdater(qi.SMCUpdater):
         We can bypass this behaviour by setting force_update to True
         """
 
-        # Then calculate what would happen with an update of these data at the
+        # calculate what would happen with an update of these data at the
         # current value of data_divider
         # note that we may not be giving it an integer outcome, but poisson_pdf can handle it
-        if data_divider > 1:
-            self.particle_locations[:,5:7] = self.particle_locations[:,5:7] / data_divider
+        divided_expparams = expparams.copy()
+        divided_expparams['n_meas'] = divided_expparams['n_meas'] / data_divider
         weights, norm = self.hypothetical_update(outcome / data_divider, expparams, return_normalization=True)
-        if data_divider > 1:
-            self.particle_locations[:,5:7] = self.particle_locations[:,5:7] * data_divider
         n_ess = 1 / (np.sum(weights[0,0,:]**2))
 
         # Check for negative weights           
