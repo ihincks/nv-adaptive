@@ -429,18 +429,20 @@ class DataFrameLiveView(object):
                 np.array(list(df['smc_upper_quantile']))[:,idx_param],
                 alpha=0.3
             )
-        plt.plot(
-            np.arange(1,df.shape[0]), 
-            np.array(df['bright'][1:]).astype(float)/np.array(df['n_meas'][1:]).astype(float),
-            '.',
-            label='Normalized Bright Counts'
-        )
-        plt.plot(
-            np.arange(1,df.shape[0]), 
-            np.array(df['dark'][1:]).astype(float)/np.array(df['n_meas'][1:]).astype(float),
-            '.',
-            label='Normalized Dark Counts'
-        )
+        try:
+            plt.plot(
+                np.arange(1,df.shape[0]), 
+                np.array(df['bright'][1:]).astype(float)/np.array(df['n_meas'][1:]).astype(float),
+                '.'
+            )
+            plt.plot(
+                np.arange(1,df.shape[0]), 
+                np.array(df['dark'][1:]).astype(float)/np.array(df['n_meas'][1:]).astype(float),
+                '.'
+            )
+        except:
+            plt.plot([],[],'.')
+            plt.plot([],[],'.')
         plt.ylabel('References\nPhotons per Shot') 
 
         #----------------------------------------------------------------
@@ -484,7 +486,10 @@ class DataFrameLiveView(object):
         sim_eps = rabi_sweep(1, n=100)
         sim_eps['t'] = sim_ts
         plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
-        plt.plot(ts, rabi_p, '.')
+        try:
+            plt.plot(ts, rabi_p, '.')
+        except:
+            plt.plot([],[],'.')
         plt.ylim([-0.05,1.05])
         plt.title('Rabi Experiment and Best Simulation')
         plt.xlabel('$t_p$ ($\mu$s)')
@@ -500,7 +505,10 @@ class DataFrameLiveView(object):
         sim_eps = ramsey_sweep(1, n=100)
         sim_eps['tau'] = sim_ts
         plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
-        plt.plot(ts, ramsey_p, '.')
+        try:
+            plt.plot(ts, ramsey_p, '.')
+        except:
+            plt.plot([],[],'.')
         plt.ylim([-0.05,1.05])
         plt.title('Ramsey Experiment and Best Simulation')
         plt.xlabel('$\tau$ ($\mu$s)')
