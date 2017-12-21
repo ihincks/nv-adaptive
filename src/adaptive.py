@@ -324,11 +324,12 @@ class DataFrameLiveView(object):
         line.set_ydata(y_vals)
         
     def update(self):
-        self.update_ref(self.axes[0])
-        self.update_rabi(self.axes[1])
-        self.update_ramsey(self.axes[2])
-        self.update_simulations(self.axes[3], self.axes[4])
-        self.fig.canvas.draw()
+	if self.df.shape[0] > 1:
+            self.update_ref(self.axes[0])
+            self.update_rabi(self.axes[1])
+            self.update_ramsey(self.axes[2])
+            self.update_simulations(self.axes[3], self.axes[4])
+            self.fig.canvas.draw()
         
     def update_ref(self, axis):
         df = self.df
@@ -350,6 +351,8 @@ class DataFrameLiveView(object):
         for idx, label in enumerate(['bright', 'dark']):
             data = np.array(df[label][1:]).astype(float) / np.array(df['n_meas'][1:]).astype(float)
             DataFrameLiveView.update_line(axis.lines[idx+2], x_vals, data)
+
+	axis.set_ylim([0.9 * np.amin(dark_lower), 1.1 * np.amax(bright_upper)])
             
     def update_rabi(self, axis):
         idx_param = self.ham_model.IDX_OMEGA
@@ -357,9 +360,10 @@ class DataFrameLiveView(object):
         x_vals = np.arange(means.size)
         DataFrameLiveView.update_line(axis.lines[0], x_vals, means)
         
-        upper = np.array(list(self.df['smc_lower_quantile']))[:,idx_param]
-        lower = np.array(list(self.df['smc_upper_quantile']))[:,idx_param]
+        upper = np.array(list(self.df['smc_upper_quantile']))[:,idx_param]
+        lower = np.array(list(self.df['smc_lower_quantile']))[:,idx_param]
         DataFrameLiveView.update_fill_between(axis.collections[0], x_vals, lower, upper)
+	axis.set_ylim([0.9 * np.amin(lower), 1.1 * np.amax(upper)])
         
     def update_ramsey(self, axis):
         idx_param = self.ham_model.IDX_ZEEMAN
@@ -367,9 +371,10 @@ class DataFrameLiveView(object):
         x_vals = np.arange(means.size)
         DataFrameLiveView.update_line(axis.lines[0], x_vals, means)
         
-        upper = np.array(list(self.df['smc_lower_quantile']))[:,idx_param]
-        lower = np.array(list(self.df['smc_upper_quantile']))[:,idx_param]
+        upper = np.array(list(self.df['smc_upper_quantile']))[:,idx_param]
+        lower = np.array(list(self.df['smc_lower_quantile']))[:,idx_param]
         DataFrameLiveView.update_fill_between(axis.collections[0], x_vals, lower, upper)
+	axis.set_ylim([0.9 * np.amin(lower), 1.1 * np.amax(upper)])
         
     def update_simulations(self, axis_rabi, axis_ramsey):
         eps_rabi, rabi_p, eps_ramsey, ramsey_p = normalized_and_separated_signal(self.df)
@@ -421,12 +426,12 @@ class DataFrameLiveView(object):
         # draw references
         #----------------------------------------------------------------
         plt.sca(ax_ref)
-        plt.plot([],[])                 # bright mean
-        plt.plot([],[])                 # dark mean
-        plt.plot([],[],'.')             # bright data
-        plt.plot([],[],'.')             # dark data
-        plt.fill_between([],[],[])      # bright 90%
-        plt.fill_between([],[],[])      # dark 90%
+        plt.plot([],[])                           # bright mean
+        plt.plot([],[])                           # dark mean
+        plt.plot([],[],'.')                       # bright data
+        plt.plot([],[],'.')                       # dark data
+        plt.fill_between([],[],[],alpha=0.3)      # bright 90%
+        plt.fill_between([],[],[],alpha=0.3)      # dark 90%
             
         plt.ylabel('References\nPhotons per Shot') 
 
@@ -436,6 +441,7 @@ class DataFrameLiveView(object):
         plt.sca(ax_rabi)
         plt.plot([],[])
         plt.fill_between([],[],[], alpha=0.3) 
+	idx_param = m.RabiRamseyModel.IDX_OMEGA
         plt.ylabel('${}$ (MHz)'.format(self.ham_model.modelparam_names[idx_param]))
 
         #----------------------------------------------------------------
@@ -444,6 +450,7 @@ class DataFrameLiveView(object):
         plt.sca(ax_ramsey)
         plt.plot([],[])
         plt.fill_between([],[],[], alpha=0.3) 
+	idx_param = m.RabiRamseyModel.IDX_ZEEMAN
         plt.ylabel('${}$ (MHz)'.format(self.ham_model.modelparam_names[idx_param]))
         plt.xlabel('Number of Experiments')
         plt.xlim([0,100])
