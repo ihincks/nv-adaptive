@@ -642,20 +642,6 @@ class ReferencedPoissonModel(qi.DerivedModel):
             ], axis=1)
             
             
-class SliceResampler(qi.LiuWestResampler):
-    def __call__(self, model, particle_weights, particle_locations,
-        precomputed_mean=None, precomputed_cov=None
-    ):
-        store_refs = particle_locations[:,-2:].copy()
-        w, l = super(SliceResampler, self).__call__(
-                model, particle_weights, particle_locations, 
-                n_particles=particle_weights.shape[0], 
-                precomputed_cov=precomputed_cov, 
-                precomputed_mean=precomputed_mean
-            )
-        l[:,-2:] = store_refs
-        return w, l
-            
 class BridgedRPMUpdater(qi.SMCUpdater):
     """
     We make a few changes to the SMC updater specific to the referenced 
@@ -686,10 +672,10 @@ class BridgedRPMUpdater(qi.SMCUpdater):
         # current value of data_divider
         # note that we may not be giving it an integer outcome, but poisson_pdf can handle it
         if data_divider > 1:
-            self.particle_locations[:,-2:] = self.particle_locations[:,-2:] / data_divider
+            self.particle_locations[:,5:7] = self.particle_locations[:,5:7] / data_divider
         weights, norm = self.hypothetical_update(outcome / data_divider, expparams, return_normalization=True)
         if data_divider > 1:
-            self.particle_locations[:,-2:] = self.particle_locations[:,-2:] * data_divider
+            self.particle_locations[:,5:7] = self.particle_locations[:,5:7] * data_divider
         n_ess = 1 / (np.sum(weights[0,0,:]**2))
 
         # Check for negative weights           
