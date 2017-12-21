@@ -479,17 +479,24 @@ class DataFrameLiveView(object):
         # draw rabi simulation
         #----------------------------------------------------------------
         plt.sca(ax_rabi_sim)
-        eps_rabi, rabi_p, eps_ramsey, ramsey_p = normalized_and_separated_signal(df)
-        ts = eps_rabi['t']
-        max_t = 0 if ts.size == 0 else np.amax(ts)
-        sim_ts = np.linspace(0, max(max_t,0.2), 100)
-        sim_eps = rabi_sweep(1, n=100)
-        sim_eps['t'] = sim_ts
-        plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
+        failed = False
         try:
+            eps_rabi, rabi_p, eps_ramsey, ramsey_p = normalized_and_separated_signal(df)
+            ts = eps_rabi['t']
+            max_t = 0 if ts.size == 0 else np.amax(ts)
+            sim_ts = np.linspace(0, max(max_t,0.2), 100)
+            sim_eps = rabi_sweep(1, n=100)
+            sim_eps['t'] = sim_ts
+            plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
             plt.plot(ts, rabi_p, '.')
         except:
-            plt.plot([],[],'.')
+            sim_ts = np.linspace(0, 0.2, 100)
+            sim_eps = rabi_sweep(1, n=100)
+            sim_eps['t'] = sim_ts
+            plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
+            plt.plot([],[], '.')
+            failed = True
+
         plt.ylim([-0.05,1.05])
         plt.title('Rabi Experiment and Best Simulation')
         plt.xlabel('$t_p$ ($\mu$s)')
@@ -499,16 +506,21 @@ class DataFrameLiveView(object):
         # draw ramsey simulation
         #----------------------------------------------------------------
         plt.sca(ax_ramsey_sim)
-        ts = eps_ramsey['tau']
-        max_t = 0 if ts.size == 0 else np.amax(ts)
-        sim_ts = np.linspace(0, max(max_t,0.2), 100)
-        sim_eps = ramsey_sweep(1, n=100)
-        sim_eps['tau'] = sim_ts
-        plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
-        try:
+        if not failed:
+            ts = eps_ramsey['tau']
+            max_t = 0 if ts.size == 0 else np.amax(ts)
+            sim_ts = np.linspace(0, max(max_t, 2), 100)
+            sim_eps = ramsey_sweep(1, n=100)
+            sim_eps['tau'] = sim_ts
+            plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
             plt.plot(ts, ramsey_p, '.')
-        except:
-            plt.plot([],[],'.')
+        else:
+            sim_ts = np.linspace(0, 2, 100)
+            sim_eps = ramsey_sweep(1, n=100)
+            sim_eps['tau'] = sim_ts
+            plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
+            plt.plot([], [], '.')
+            
         plt.ylim([-0.05,1.05])
         plt.title('Ramsey Experiment and Best Simulation')
         plt.xlabel('$\tau$ ($\mu$s)')
