@@ -388,7 +388,7 @@ class DataFrameLiveView(object):
                                       
         ts = eps_ramsey['tau']
         max_t = 0 if ts.size == 0 else np.amax(ts)
-        sim_ts = np.linspace(0, max(max_t,0.2), 100)
+        sim_ts = np.linspace(0, max(max_t,2), 100)
         sim_eps = ramsey_sweep(1, n=100)
         sim_eps['tau'] = sim_ts
         simulation = self.ham_model.likelihood(0,
@@ -415,62 +415,33 @@ class DataFrameLiveView(object):
         ax_ramsey_sim = fig.add_subplot(gs2[1,0])
         ax_rabi_sim = fig.add_subplot(gs2[0,0])
 
-
-
         #----------------------------------------------------------------
         # draw references
         #----------------------------------------------------------------
         plt.sca(ax_ref)
-        for idx_param in range(5,7):
-            plt.plot(np.array(list(df['smc_mean']))[:,idx_param])
-            plt.fill_between(
-                np.arange(np.array(list(df['smc_mean'])).shape[0]),
-                np.array(list(df['smc_lower_quantile']))[:,idx_param],
-                np.array(list(df['smc_upper_quantile']))[:,idx_param],
-                alpha=0.3
-            )
-        try:
-            plt.plot(
-                np.arange(1,df.shape[0]), 
-                np.array(df['bright'][1:]).astype(float)/np.array(df['n_meas'][1:]).astype(float),
-                '.'
-            )
-            plt.plot(
-                np.arange(1,df.shape[0]), 
-                np.array(df['dark'][1:]).astype(float)/np.array(df['n_meas'][1:]).astype(float),
-                '.'
-            )
-        except:
-            plt.plot([],[],'.')
-            plt.plot([],[],'.')
+        plt.plot([],[])                 # bright mean
+        plt.plot([],[])                 # dark mean
+        plt.plot([],[],'.')             # bright data
+        plt.plot([],[],'.')             # dark data
+        plt.fill_between([],[],[])      # bright 90%
+        plt.fill_between([],[],[])      # dark 90%
+            
         plt.ylabel('References\nPhotons per Shot') 
 
         #----------------------------------------------------------------
         # draw rabi learning
         #----------------------------------------------------------------
         plt.sca(ax_rabi)
-        idx_param=0
-        plt.plot(np.array(list(df['smc_mean']))[:,idx_param])
-        plt.fill_between(
-            np.arange(np.array(list(df['smc_mean'])).shape[0]),
-            np.array(list(df['smc_lower_quantile']))[:,idx_param],
-            np.array(list(df['smc_upper_quantile']))[:,idx_param],
-            alpha=0.3
-        )
+        plt.plot([],[])
+        plt.fill_between([],[],[], alpha=0.3) 
         plt.ylabel('${}$ (MHz)'.format(self.ham_model.modelparam_names[idx_param]))
 
         #----------------------------------------------------------------
         # draw ramsey learning
         #----------------------------------------------------------------
         plt.sca(ax_ramsey)
-        idx_param=1
-        plt.plot(np.array(list(df['smc_mean']))[:,idx_param])
-        plt.fill_between(
-            np.arange(np.array(list(df['smc_mean'])).shape[0]),
-            np.array(list(df['smc_lower_quantile']))[:,idx_param],
-            np.array(list(df['smc_upper_quantile']))[:,idx_param],
-            alpha=0.3
-        )
+        plt.plot([],[])
+        plt.fill_between([],[],[], alpha=0.3) 
         plt.ylabel('${}$ (MHz)'.format(self.ham_model.modelparam_names[idx_param]))
         plt.xlabel('Number of Experiments')
         plt.xlim([0,100])
@@ -479,23 +450,8 @@ class DataFrameLiveView(object):
         # draw rabi simulation
         #----------------------------------------------------------------
         plt.sca(ax_rabi_sim)
-        failed = False
-        try:
-            eps_rabi, rabi_p, eps_ramsey, ramsey_p = normalized_and_separated_signal(df)
-            ts = eps_rabi['t']
-            max_t = 0 if ts.size == 0 else np.amax(ts)
-            sim_ts = np.linspace(0, max(max_t,0.2), 100)
-            sim_eps = rabi_sweep(1, n=100)
-            sim_eps['t'] = sim_ts
-            plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
-            plt.plot(ts, rabi_p, '.')
-        except:
-            sim_ts = np.linspace(0, 0.2, 100)
-            sim_eps = rabi_sweep(1, n=100)
-            sim_eps['t'] = sim_ts
-            plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
-            plt.plot([],[], '.')
-            failed = True
+        plt.plot([],[])
+        plt.plot([],[],'.')
 
         plt.ylim([-0.05,1.05])
         plt.title('Rabi Experiment and Best Simulation')
@@ -506,24 +462,12 @@ class DataFrameLiveView(object):
         # draw ramsey simulation
         #----------------------------------------------------------------
         plt.sca(ax_ramsey_sim)
-        if not failed:
-            ts = eps_ramsey['tau']
-            max_t = 0 if ts.size == 0 else np.amax(ts)
-            sim_ts = np.linspace(0, max(max_t, 2), 100)
-            sim_eps = ramsey_sweep(1, n=100)
-            sim_eps['tau'] = sim_ts
-            plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
-            plt.plot(ts, ramsey_p, '.')
-        else:
-            sim_ts = np.linspace(0, 2, 100)
-            sim_eps = ramsey_sweep(1, n=100)
-            sim_eps['tau'] = sim_ts
-            plt.plot(sim_ts, self.ham_model.likelihood(0,df['smc_mean'][df.shape[0]-1][np.newaxis,:5],sim_eps).flatten())
-            plt.plot([], [], '.')
+        plt.plot([],[])
+        plt.plot([],[],'.')
             
         plt.ylim([-0.05,1.05])
         plt.title('Ramsey Experiment and Best Simulation')
-        plt.xlabel('$\tau$ ($\mu$s)')
+        plt.xlabel(r'$\tau$ ($\mu$s)')
         plt.ylabel(r'Tr$(\rho|0\rangle\langle 0|)$')
 
         gs.tight_layout(fig, h_pad=0.1, rect=(0,0,0.5,1))
@@ -531,6 +475,8 @@ class DataFrameLiveView(object):
         
         self.fig = fig
         self.axes = [ax_ref, ax_rabi, ax_ramsey, ax_rabi_sim, ax_ramsey_sim]
+        
+        self.update()
 
 #-------------------------------------------------------------------------------
 # SWEEP EXPPARAMS
