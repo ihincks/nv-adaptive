@@ -652,7 +652,6 @@ class BridgedRPMUpdater(qi.SMCUpdater):
     
     def __init__(self, model, n_particles, prior, branch_size=2, max_recursion=10, zero_weight_policy='ignore', n_ess_thresh= 1000, **kwargs):
         super(BridgedRPMUpdater, self).__init__(model, n_particles, prior, **kwargs)
-        self.resampler = SliceResampler(default_n_particles=n_particles)
         self.n_ess_thresh = n_ess_thresh
         self.branch_size = branch_size
         self.max_recursion = max_recursion
