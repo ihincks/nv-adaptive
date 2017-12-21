@@ -824,9 +824,10 @@ class TrackingHeuristic(qi.Heuristic):
         self._initial_bright_std = np.sqrt(bright) / (2 * n_meas * n_repetitions)
         self._initial_dark_std = np.sqrt(dark) / (n_meas * n_repetitions)
         
+        self.has_initial_reference = True
+        
         self.reset_reference_prior()
         
-        self.has_initial_reference = True
         
     def _decide_on_tracking(self):
         bright_est = self.updater.est_mean()[5]
