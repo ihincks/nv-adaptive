@@ -379,14 +379,15 @@ class DataFrameLiveView(object):
         
     def update_simulations(self, axis_rabi, axis_ramsey):
         eps_rabi, rabi_p, eps_ramsey, ramsey_p = normalized_and_separated_signal(self.df)
+        current_mean = self.df['smc_mean'][self.df.shape[0]-1][:5]
         
         ts = eps_rabi['t']
         max_t = 0 if ts.size == 0 else np.amax(ts)
         sim_ts = np.linspace(0, max(max_t,0.2), 100)
         sim_eps = rabi_sweep(1, n=100)
         sim_eps['t'] = sim_ts
-        simulation =  self.ham_model.likelihood(0,
-            self.df['smc_mean'][self.df.shape[0]-1][np.newaxis,:5], sim_eps
+        simulation =  self.ham_model.likelihood(
+            0, current_mean[np.newaxis, :], sim_eps
         ).flatten()
         
         DataFrameLiveView.update_line(axis_rabi.lines[0], sim_ts, simulation)
@@ -396,10 +397,11 @@ class DataFrameLiveView(object):
         ts = eps_ramsey['tau']
         max_t = 0 if ts.size == 0 else np.amax(ts)
         sim_ts = np.linspace(0, max(max_t,2), 100)
-        sim_eps = ramsey_sweep(1, n=100)
+        tp_est = np.round(1 / current_mean[0] / 4 / 0.002) * 0.002
+        sim_eps = ramsey_sweep(1, n=100, tp=tp_est)
         sim_eps['tau'] = sim_ts
-        simulation = self.ham_model.likelihood(0,
-            self.df['smc_mean'][self.df.shape[0]-1][np.newaxis,:5],sim_eps
+        simulation = self.ham_model.likelihood(
+            0, current_mean[np.newaxis, :], sim_eps
         ).flatten()
         
         DataFrameLiveView.update_line(axis_ramsey.lines[0], sim_ts, simulation)
@@ -860,7 +862,7 @@ class RiskHeuristic(qi.Heuristic):
         self.risk_history = []
         
     def _update_risk_particles(self):
-        self._risk_taker.particle_locations = self.updater.particle_locations
+        self._risk_taker.particle_locations = self.updater.particle_locations[:,:5]
         self._risk_taker.particle_weights = self.updater.particle_weights
         
     def __call__(self, tp):
@@ -891,7 +893,7 @@ class InfoGainHeuristic(qi.Heuristic):
         self.risk_history = []
         
     def _update_risk_particles(self):
-        self._risk_taker.particle_locations = self.updater.particle_locations
+        self._risk_taker.particle_locations = self.updater.particle_locations[:,:5]
         self._risk_taker.particle_weights = self.updater.particle_weights
         
     def __call__(self, tp):
@@ -1043,7 +1045,7 @@ class TrackingHeuristic(qi.Heuristic):
         
     def _decide_on_tracking(self):
         bright_est = self.updater.est_mean()[5]
-        return bright_est < self._initial_bright_mean - 4 * self._initial_bright_std
+        return bright_est < self._initial_bright_mean - 2 * self.std_mult * self._initial_bright_std
         
         
     def __call__(self, tp):
