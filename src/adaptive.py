@@ -364,6 +364,7 @@ class DataFrameLiveView(object):
         lower = np.array(list(self.df['smc_lower_quantile']))[:,idx_param]
         DataFrameLiveView.update_fill_between(axis.collections[0], x_vals, lower, upper)
 	axis.set_ylim([0.9 * np.amin(lower), 1.1 * np.amax(upper)])
+        axis.set_xlim([0, max(200, x_vals[-1])])
         
     def update_ramsey(self, axis):
         idx_param = self.ham_model.IDX_ZEEMAN
@@ -816,7 +817,7 @@ class RealRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
         
         if expparam['emode'] == m.RabiRamseyModel.RABI:
             eps['pulse1_time'] = 1e-6 * expparam['t']
-        elif expparam['emode'] == m.RabiRamseyModel.RABI:
+        elif expparam['emode'] == m.RabiRamseyModel.RAMSEY:
             eps['delay_time'] = 1e-6 * expparam['tau']
             eps['pulse1_time'] = 1e-6 * expparam['t']
             eps['pulse2_time'] = 1e-6 * expparam['t']
