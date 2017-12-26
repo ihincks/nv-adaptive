@@ -34,6 +34,9 @@ def get_now():
 #-------------------------------------------------------------------------------
 # FUNCTIONS
 #-------------------------------------------------------------------------------
+
+def est_std(p, alpha, beta):
+    return np.sqrt(p*(p+1)*alpha + (p-1)*(p-2)*beta)/(alpha-beta)
     
 def add_counts_by_unique_expparams(df):
     # need to hash the expparams for pandas to group them
@@ -49,17 +52,21 @@ def add_counts_by_unique_expparams(df):
 
 def normalized_signal_by_unique_expparams(df):
     eps, bright, dark, signal = add_counts_by_unique_expparams(df)
-    return eps, (signal - dark).astype(float) / (bright - dark)
+    p = (signal - dark).astype(float) / (bright - dark)
+    p_stds = est_std(p, bright, dark)
+    return eps, p, p_stds
 
 def normalized_and_separated_signal(df):
-    eps, p = normalized_signal_by_unique_expparams(df)
+    eps, p, p_stds = normalized_signal_by_unique_expparams(df)
     rabi_idx = eps['emode'] == m.RabiRamseyModel.RABI
     rabi_eps = eps[rabi_idx]
     rabi_p = p[rabi_idx]
+    rabi_p_stds = p_stds[rabi_idx]
     ramsey_idx = np.logical_not(rabi_idx)
     ramsey_eps = eps[ramsey_idx]
     ramsey_p = p[ramsey_idx]
-    return rabi_eps, rabi_p, ramsey_eps, ramsey_p    
+    ramsey_p_stds = p_stds[ramsey_idx]
+    return rabi_eps, rabi_p, rabi_p_stds, ramsey_eps, ramsey_p, ramsey_p_stds  
     
 #-------------------------------------------------------------------------------
 # DATA STORAGE
@@ -323,6 +330,12 @@ class DataFrameLiveView(object):
         line.set_xdata(x_vals)
         line.set_ydata(y_vals)
         
+    @staticmethod
+    def update_errorbar(lines, x_vals, y_vals, y_errs):
+        DataFrameLiveView.update_line(lines[0], x_vals, y_vals)
+        DataFrameLiveView.update_line(lines[1], x_vals, y_vals - y_errs)
+        DataFrameLiveView.update_line(lines[2], x_vals, y_vals + y_errs)
+        
     def update(self):
 	if self.df.shape[0] > 1:
             self.update_ref(self.axes[0])
@@ -378,7 +391,7 @@ class DataFrameLiveView(object):
 	axis.set_ylim([0.9 * np.amin(lower), 1.1 * np.amax(upper)])
         
     def update_simulations(self, axis_rabi, axis_ramsey):
-        eps_rabi, rabi_p, eps_ramsey, ramsey_p = normalized_and_separated_signal(self.df)
+        eps_rabi, rabi_p, rabi_p_stds, eps_ramsey, ramsey_p, ramsey_p_stds = normalized_and_separated_signal(self.df)
         current_mean = self.df['smc_mean'][self.df.shape[0]-1][:5]
         
         ts = eps_rabi['t']
@@ -391,7 +404,7 @@ class DataFrameLiveView(object):
         ).flatten()
         
         DataFrameLiveView.update_line(axis_rabi.lines[0], sim_ts, simulation)
-        DataFrameLiveView.update_line(axis_rabi.lines[1], ts, rabi_p)
+        DataFrameLiveView.update_errorbar(axis_rabi.lines[1:], ts, rabi_p, rabi_p_stds)
         axis_rabi.set_xlim([0, np.amax(sim_ts)])
                                       
         ts = eps_ramsey['tau']
@@ -405,7 +418,7 @@ class DataFrameLiveView(object):
         ).flatten()
         
         DataFrameLiveView.update_line(axis_ramsey.lines[0], sim_ts, simulation)
-        DataFrameLiveView.update_line(axis_ramsey.lines[1], ts, ramsey_p)
+        DataFrameLiveView.update_errorbar(axis_ramsey.lines[1:], ts, ramsey_p, ramsey_p_stds)
         axis_ramsey.set_xlim([0, np.amax(sim_ts)])
         
         
@@ -444,7 +457,7 @@ class DataFrameLiveView(object):
         plt.sca(ax_rabi)
         plt.plot([],[])
         plt.fill_between([],[],[], alpha=0.3) 
-	idx_param = m.RabiRamseyModel.IDX_OMEGA
+        idx_param = m.RabiRamseyModel.IDX_OMEGA
         plt.ylabel('${}$ (MHz)'.format(self.ham_model.modelparam_names[idx_param]))
 
         #----------------------------------------------------------------
@@ -453,7 +466,7 @@ class DataFrameLiveView(object):
         plt.sca(ax_ramsey)
         plt.plot([],[])
         plt.fill_between([],[],[], alpha=0.3) 
-	idx_param = m.RabiRamseyModel.IDX_ZEEMAN
+        idx_param = m.RabiRamseyModel.IDX_ZEEMAN
         plt.ylabel('${}$ (MHz)'.format(self.ham_model.modelparam_names[idx_param]))
         plt.xlabel('Number of Experiments')
         plt.xlim([0,100])
@@ -463,7 +476,7 @@ class DataFrameLiveView(object):
         #----------------------------------------------------------------
         plt.sca(ax_rabi_sim)
         plt.plot([],[])
-        plt.plot([],[],'.')
+        plt.errorbar([0],[0],fmt='.',yerr=[0],capthick=1,capsize=3)
 
         plt.ylim([-0.05,1.05])
         plt.title('Rabi Experiment and Best Simulation')
@@ -475,7 +488,7 @@ class DataFrameLiveView(object):
         #----------------------------------------------------------------
         plt.sca(ax_ramsey_sim)
         plt.plot([],[])
-        plt.plot([],[],'.')
+        plt.errorbar([0],[0],fmt='.',yerr=[0],capthick=1,capsize=3)
             
         plt.ylim([-0.05,1.05])
         plt.title('Ramsey Experiment and Best Simulation')
