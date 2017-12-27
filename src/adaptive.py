@@ -907,7 +907,7 @@ class TCPRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
         raise NotImplemented()
     
     @staticmethod    
-    def make_job_string(n_shots=100000, meas_time=800e-9, center_freq=2.87e9, 
+    def make_job_string(n_meas=100000, meas_time=800e-9, center_freq=2.87e9, 
             intermediate_freq=0, adiabatic_power=0, delay_time=0,
             pulse1_time=0, pulse1_phase=0, pulse1_power=0, pulse1_offset_freq=0,
             pulse1_modulation_freq=0, pulse1_modulation_phase=0,
@@ -917,7 +917,7 @@ class TCPRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
             ):
         job_string = '{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n'
         job_string = job_string.format(
-            int(precede_by_tracking), int(n_shots), 
+            int(precede_by_tracking), int(n_meas), 
             meas_time, center_freq, intermediate_freq,
             adiabatic_power,
             delay_time,
