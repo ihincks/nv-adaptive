@@ -709,6 +709,47 @@ class TopChefExperimentJob(ExperimentJob):
             preceded_by_tracking=preceded_by_tracking, 
             timestamp=ts
         )
+        
+class TCPExperimentJob(ExperimentJob):
+    def __init__(self, tcp_client):
+        super(TCPExperimentJob, self).__init__()
+        self._tcp_client = tcp_client
+        self._buffer = ''
+    
+    @property    
+    def is_complete(self):
+        try:
+            self._buffer += self._tcp_client.recv(1024)
+            return True
+        except:
+            return False
+        
+    def get_result(self):
+        super(TCPExperimentJob, self).get_result()
+        assert self.is_complete
+        
+        read_tries = 0
+        while '\n' not in self._buffer and read_tries < 100:
+            try:
+                read_tries += 1
+                self._buffer += self._tcp_client.recv(1024)
+            except:
+                raise RuntimeError('Failed to get experiment response.')
+            
+        message = self._buffer.split('\n')[0]
+        
+        bright, dark, signal, pbt, ts = message.split(',')
+
+        bright, dark, signal = int(bright), int(dark), int(signal)
+        preceded_by_tracking = bool(pbt)
+        ts = dateutil.parser.parse(ts)
+        ts = Timestamp(ts.replace(tzinfo=None))
+                    
+        return ExperimentResult(
+            bright, dark, signal, 
+            preceded_by_tracking=preceded_by_tracking, 
+            timestamp=ts
+        )
 
 class AbstractRabiRamseyExperimentRunner(object):
     
@@ -786,9 +827,9 @@ class SimulatedRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
         job.push_result(bright, dark, signal)
         return job
         
-class RealRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
+class TopChefRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
     def __init__(self, topchef_service):
-        super(RealRabiRamseyExperimentRunner, self).__init__()
+        super(TopChefRabiRamseyExperimentRunner, self).__init__()
         
         self._service = topchef_service
         
@@ -826,7 +867,7 @@ class RealRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
        }
         
     def run_experiment(self, expparam, precede_by_tracking=False):
-        super(RealRabiRamseyExperimentRunner, self).run_experiment(expparam)
+        super(TopChefRabiRamseyExperimentRunner, self).run_experiment(expparam)
         
         eps = self._bare_eps
         
@@ -853,6 +894,73 @@ class RealRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
         topchef_job = self._service.new_job(eps)
 
         return TopChefExperimentJob(topchef_job)
+        
+        
+
+class TCPRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
+    def __init__(self, tcp_client):
+        super(TCPRabiRamseyExperimentRunner, self).__init__()
+        
+        self._tcp_client = tcp_client
+
+    def run_tracking(self):
+        raise NotImplemented()
+    
+    @staticmethod    
+    def make_job_string(n_shots=100000, meas_time=800e-9, center_freq=2.87e9, 
+            intermediate_freq=0, adiabatic_power=0, delay_time=0,
+            pulse1_time=0, pulse1_phase=0, pulse1_power=0, pulse1_offset_freq=0,
+            pulse1_modulation_freq=0, pulse1_modulation_phase=0,
+            pulse2_time=0, pulse2_phase=0, pulse2_power=0, pulse2_offset_freq=0,
+            pulse2_modulation_freq=0, pulse2_modulation_phase=0,
+            precede_by_tracking=False
+            ):
+        job_string = '{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n'
+        job_string = job_string.format(
+            int(precede_by_tracking), int(n_shots), 
+            meas_time, center_freq, intermediate_freq,
+            adiabatic_power,
+            delay_time,
+            pulse1_time, pulse1_phase, pulse1_power, pulse1_offset_freq,
+            pulse1_modulation_freq, pulse1_modulation_phase,
+            pulse2_time, pulse2_phase, pulse2_power, pulse2_offset_freq,
+            pulse2_modulation_freq, pulse2_modulation_phase
+        )
+        return job_string
+        
+        
+    def run_experiment(self, expparam, precede_by_tracking=False):
+        super(TCPRabiRamseyExperimentRunner, self).run_experiment(expparam)
+        
+        center_freq = 2.87e9 - 1e6 * expparam['wo']
+        
+        if expparam['emode'] == m.RabiRamseyModel.RABI:
+            job_string = self.make_job_string(
+                pulse1_time = 1e-6 * expparam['t'], 
+                center_freq=center_freq,
+                n_meas=expparam['n_meas']
+            )
+        elif expparam['emode'] == m.RabiRamseyModel.RAMSEY:
+            job_string = self.make_job_string(
+                delay_time = 1e-6 * expparam['tau'],
+                pulse1_time = 1e-6 * expparam['t'],
+                pulse2_time = 1e-6 * expparam['t'],
+                pulse2_phase = expparam['phi'],
+                center_freq=center_freq,
+                n_meas=expparam['n_meas']
+            )
+        else:
+            raise RuntimeError('Unknown experiment.')
+            
+        try:
+            # try to clear the read buffer just in case the old job
+            # was not collected
+            self._tcp_client.recv(8192)
+        except:
+            pass
+        self._tcp_client.send(job_string)
+
+        return TCPExperimentJob(self._tcp_client)
 
 
 #-------------------------------------------------------------------------------
