@@ -34,6 +34,16 @@ def asscalar(a):
 
 
 def add_counts_by_unique_expparams(df):
+    """
+    Groups the given DataFrame by unique expparams,
+    and performs a sum of bright, dark, and signal
+    over those groups.
+    
+    :param DataFrame df: As constructed by `new_experiment_dataframe`
+    
+    :returns: Tuple `(eps, bright, dark, signal)`, each an
+    `np.ndarray` of the same length.
+    """
     # need to hash the expparams for pandas to group them
     groups = df[1:].groupby(df[1:].expparam.apply(lambda x: '{}'.format(x)))
     
@@ -46,12 +56,31 @@ def add_counts_by_unique_expparams(df):
     return eps, bright, dark, signal
 
 def normalized_signal_by_unique_expparams(df):
+    """
+    Uses the output of `add_counts_by_unique_expparams` to
+    normalize the signal by the references, returning also
+    an estimate of the std of the normalized value based
+    on the Fisher information of the referenced poisson model.
+    
+    :param DataFrame df: As constructed by `new_experiment_dataframe`
+    
+    :returns: Tuple `(eps, p, p_stds)`, each an
+    `np.ndarray` of the same length.
+    """
     eps, bright, dark, signal = add_counts_by_unique_expparams(df)
     p = (signal - dark).astype(float) / (bright - dark)
     p_stds = est_std(p, bright, dark)
     return eps, p, p_stds
 
 def normalized_and_separated_signal(df):
+    """
+    Separates the output of `normalized_signal_by_unique_expparams`
+    into ramsey and rabi experiments.
+    
+    :param DataFrame df: As constructed by `new_experiment_dataframe`
+    
+    :returns: Tuple `(rabi_eps, rabi_p, rabi_p_stds, ramsey_eps, ramsey_p, ramsey_p_stds)`
+    """
     eps, p, p_stds = normalized_signal_by_unique_expparams(df)
     rabi_idx = eps['emode'] == m.RabiRamseyModel.RABI
     rabi_eps = eps[rabi_idx]
@@ -62,6 +91,71 @@ def normalized_and_separated_signal(df):
     ramsey_p = p[ramsey_idx]
     ramsey_p_stds = p_stds[ramsey_idx]
     return rabi_eps, rabi_p, rabi_p_stds, ramsey_eps, ramsey_p, ramsey_p_stds  
+
+def extract_panel_data(panel, y_column, idxs=None, x_column=None, skip_first=False):
+    """
+    Extracts data from a HeuristicData object across data frames. It is assumed
+    that all dataframes have the same number of rows.
+    
+    :param str y_column: Which column of the dataframes to extract.
+    :param idxs: A numpy slice object (ex. np.s_[3,3]) to apply to the data
+    entries, or None, to take everything.
+    :param str x_column: Which column to use as the x-axis.
+    
+    :return: A tuple `(x_vals, y_vals)` where `y_vals is an
+    `np.ndarray` of shape `(n_dataframes, n_rows, ...)` where the
+    ellipsis is determined by the `idxs` pararameter.
+    """
+    n_df = panel.n_dataframes
+    
+    idxs = Ellipsis if idxs is None else idxs
+    sample_y = panel.panel[0][y_column]
+    if skip_first:
+        row_idxs = np.s_[1:]
+        n_rows = len(sample_y) - 1
+        sample_y = sample_y[1][idxs]
+    else:
+        row_idxs = np.s_[:]
+        n_rows = len(sample_y)
+        sample_y = sample_y[0][idxs]
+    
+    y_data = np.empty((n_df, n_rows,) + sample_y.shape, dtype=sample_y.dtype)
+    for idx_df in range(n_df):
+        all_rows = np.array(list(panel.panel[idx_df][y_column][row_idxs]))
+        try:
+            y_data[idx_df, ...] = all_rows[(np.s_[:],) + idxs]
+        except TypeError:
+            y_data[idx_df, ...] = all_rows[(np.s_[:],) + (idxs,)]
+    
+    if x_column is None:
+        x_data = np.arange(y_data.shape[1])
+    else:
+        sample_x = panel.panel[0][x_column]
+        try:
+            sample_x = np.array([sample_x[0]])
+        except:
+            sample_x = np.array([sample_x])
+        assert sample_x.size == 1
+            
+        x_data_all = np.empty((n_df, n_rows), dtype=float)
+        for idx_df in range(n_df):
+            x_data = panel.panel[idx_df][x_column][row_idxs]
+            try:
+                x_data_all[idx_df, :] = x_data / Timedelta(seconds=1)
+            except TypeError:
+                x_data_all[idx_df, :] = list(x_data)
+        
+        x_data = np.linspace(
+                np.amax(x_data_all[:,0]),
+                np.amin(x_data_all[:,-1]),
+                x_data_all.shape[1]
+            )
+        for idx_df in range(n_df):
+            fun = interp1d(x_data_all[idx_df, :], y_data[idx_df, ...], axis=0)
+            y_data[idx_df, ...] = fun(x_data)
+        
+        
+    return x_data, y_data
     
 #-------------------------------------------------------------------------------
 # DATA STORAGE
