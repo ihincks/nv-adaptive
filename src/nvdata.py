@@ -10,6 +10,7 @@ import models as m
 import datetime
 from pandas import DataFrame, Panel, Timestamp, Timedelta, read_pickle
 import wquantiles
+from scipy.interpolate import interp1d
 
 #-------------------------------------------------------------------------------
 # CONSTANTS
