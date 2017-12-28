@@ -5,7 +5,8 @@ import warnings
 import abc
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
-from time import sleep
+import time
+import socket
 
 import qinfer as qi
 import numpy as np
@@ -38,6 +39,13 @@ def get_now():
 def est_std(p, alpha, beta):
     return np.sqrt(p*(p+1)*alpha + (p-1)*(p-2)*beta)/(alpha-beta)
     
+def asscalar(a):
+    try:
+        return np.asscalar(a)
+    except AttributeError:
+        return a
+
+
 def add_counts_by_unique_expparams(df):
     # need to hash the expparams for pandas to group them
     groups = df[1:].groupby(df[1:].expparam.apply(lambda x: '{}'.format(x)))
@@ -553,23 +561,91 @@ def ramsey_sweep(min_tau=None, max_tau=2, tp=0.01, phi=0, n=50, n_meas=None, wo=
 # RUNNERS and TIME STEPPERS
 #-------------------------------------------------------------------------------
 
+class TCPClient(object):
+    """
+    Wraps socket.socket to make it a bit more suitable for receiving and
+    transmitting terminated strings.
+    """
+        
+    TERMINATOR = '\n'
+    INPUT_TIMEOUT = 10
+
+    def __init__(self, server_ip, server_port):
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._server_ip = server_ip
+        self._server_port = server_port
+        # we implement our own buffer just to make bytes_available
+        # a thing, since socket.socket doesn't have it.
+        self._buffer = ''
+
+    def connect(self):
+        self._socket.connect((self._server_ip, self._server_port))
+        self._socket.setblocking(0)
+
+    def close(self):
+        self._socket.close()
+
+    def _fill_buffer(self):
+        is_complete = False
+        while not is_complete:
+            try:
+                self._buffer += self._socket.recv(8192)
+                time.sleep(0.01)
+            except:
+                is_complete = True
+
+
+    @property
+    def bytes_available(self):
+        self._fill_buffer()
+        return len(self._buffer)
+
+    def flush_input(self):
+        self._fill_buffer()
+        self._buffer =  ''
+
+    def write_string(self, string):
+        self._socket.send(string + TCPClient.TERMINATOR)
+
+    def read_string(self):
+        self._fill_buffer()
+        message, sep, end = self._buffer.partition(TCPClient.TERMINATOR)
+        self._buffer = end
+        return message + sep
+
+    def read_string_until_terminator(self, timeout=None):
+        timeout = self.INPUT_TIMEOUT if timeout is None else timeout
+        message = self.read_string()
+        t = time.time()
+        while len(message) == 0 or ord(message[-1]) != ord(TCPClient.TERMINATOR):
+            message += self.read_string()
+            time.sleep(0.01)
+            if timeout > 0 and time.time() - t > timeout:
+                raise IOError('TCP input stream timeout waiting for terminator. So far we have: \n"{}"'.format(message))
+        return message
+
 class StochasticStepper(object):
     def __init__(self):
         self._x = None
         self._history = []
         self.reset()
+
     def _set_value(self, value):
         self._x = value
         self._history.append(self._x)
+
     @property
     def value(self):
         return self._x
+
     @property
     def history(self):
         return np.array(self._history)
+
     @abc.abstractmethod
     def step(self):
         pass
+
     @abc.abstractmethod
     def reset(self):
         pass
@@ -582,7 +658,7 @@ class OrnsteinUhlenbeckStepper(StochasticStepper):
         self.sigma = sigma
         self.theta = theta
         super(OrnsteinUhlenbeckStepper, self).__init__()
-        
+    
     def step(self, time):
         eps = np.sqrt(time) * np.random.randn()
         new_x = self._x + self.theta * (self.mu - self._x) * time + self.sigma * eps
@@ -711,45 +787,43 @@ class TopChefExperimentJob(ExperimentJob):
         )
         
 class TCPExperimentJob(ExperimentJob):
-    def __init__(self, tcp_client):
+    def __init__(self, job_id, tcp_client):
         super(TCPExperimentJob, self).__init__()
+        self.job_id = job_id
         self._tcp_client = tcp_client
-        self._buffer = ''
+        self._cached_result = None
     
     @property    
     def is_complete(self):
-        try:
-            self._buffer += self._tcp_client.recv(1024)
+        if self._cached_result is not None:
             return True
-        except:
-            return False
+        else:
+            return self._tcp_client.bytes_available > 0
         
     def get_result(self):
         super(TCPExperimentJob, self).get_result()
-        assert self.is_complete
-        
-        read_tries = 0
-        while '\n' not in self._buffer and read_tries < 100:
-            try:
-                read_tries += 1
-                self._buffer += self._tcp_client.recv(1024)
-            except:
-                raise RuntimeError('Failed to get experiment response.')
-            
-        message = self._buffer.split('\n')[0]
-        
-        bright, dark, signal, pbt, ts = message.split(',')
 
-        bright, dark, signal = int(bright), int(dark), int(signal)
-        preceded_by_tracking = bool(pbt)
-        ts = dateutil.parser.parse(ts)
-        ts = Timestamp(ts.replace(tzinfo=None))
-                    
-        return ExperimentResult(
-            bright, dark, signal, 
-            preceded_by_tracking=preceded_by_tracking, 
-            timestamp=ts
-        )
+        if self._cached_result is None:
+            message = self._tcp_client.read_string_until_terminator()
+
+            job_id, bright, dark, signal, pbt, ts = message.strip().split(',')
+
+            job_id = int(job_id)
+            assert job_id == self.job_id
+
+            bright, dark, signal = int(bright), int(dark), int(signal)
+
+            preceded_by_tracking = bool(pbt)
+            ts = dateutil.parser.parse(ts)
+            ts = Timestamp(ts.replace(tzinfo=None))
+
+            self._cached_result = ExperimentResult(
+                bright, dark, signal, 
+                preceded_by_tracking=preceded_by_tracking, 
+                timestamp=ts
+            )
+
+        return self._cached_result
 
 class AbstractRabiRamseyExperimentRunner(object):
     
@@ -886,10 +960,7 @@ class TopChefRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
         
         # the JSON parser doesn't like getting np arrays
         for key in eps.keys():
-            try:
-                eps[key] = np.asscalar(eps[key])
-            except AttributeError:
-                pass
+            eps[key] = asscalar(eps[key])
             
         topchef_job = self._service.new_job(eps)
 
@@ -898,10 +969,11 @@ class TopChefRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
         
 
 class TCPRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
-    def __init__(self, tcp_client):
+    def __init__(self, job_client, results_client):
         super(TCPRabiRamseyExperimentRunner, self).__init__()
         
-        self._tcp_client = tcp_client
+        self._job_client = job_client
+        self._results_client = results_client
 
     def run_tracking(self):
         raise NotImplemented()
@@ -913,9 +985,9 @@ class TCPRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
             pulse1_modulation_freq=0, pulse1_modulation_phase=0,
             pulse2_time=0, pulse2_phase=0, pulse2_power=0, pulse2_offset_freq=0,
             pulse2_modulation_freq=0, pulse2_modulation_phase=0,
-            precede_by_tracking=False
+            precede_by_tracking=False, job_id=0
             ):
-        job_string = '{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n'
+        job_string = '{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'
         job_string = job_string.format(
             int(precede_by_tracking), int(n_meas), 
             meas_time, center_freq, intermediate_freq,
@@ -924,7 +996,8 @@ class TCPRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
             pulse1_time, pulse1_phase, pulse1_power, pulse1_offset_freq,
             pulse1_modulation_freq, pulse1_modulation_phase,
             pulse2_time, pulse2_phase, pulse2_power, pulse2_offset_freq,
-            pulse2_modulation_freq, pulse2_modulation_phase
+            pulse2_modulation_freq, pulse2_modulation_phase,
+            int(job_id)
         )
         return job_string
         
@@ -932,35 +1005,35 @@ class TCPRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
     def run_experiment(self, expparam, precede_by_tracking=False):
         super(TCPRabiRamseyExperimentRunner, self).run_experiment(expparam)
         
-        center_freq = 2.87e9 - 1e6 * expparam['wo']
+        center_freq = asscalar(2.87e9 - 1e6 * expparam['wo'])
+        job_id = np.random.randint(1e6)
         
         if expparam['emode'] == m.RabiRamseyModel.RABI:
             job_string = self.make_job_string(
-                pulse1_time = 1e-6 * expparam['t'], 
+                job_id=job_id,
+                pulse1_time = asscalar(1e-6 * expparam['t']), 
                 center_freq=center_freq,
-                n_meas=expparam['n_meas']
+                n_meas=asscalar(expparam['n_meas']),
+                precede_by_tracking=precede_by_tracking
             )
         elif expparam['emode'] == m.RabiRamseyModel.RAMSEY:
             job_string = self.make_job_string(
-                delay_time = 1e-6 * expparam['tau'],
-                pulse1_time = 1e-6 * expparam['t'],
-                pulse2_time = 1e-6 * expparam['t'],
-                pulse2_phase = expparam['phi'],
+                job_id=job_id,
+                delay_time = asscalar(1e-6 * expparam['tau']),
+                pulse1_time = asscalar(1e-6 * expparam['t']),
+                pulse2_time = asscalar(1e-6 * expparam['t']),
+                pulse2_phase = asscalar(expparam['phi']),
                 center_freq=center_freq,
-                n_meas=expparam['n_meas']
+                n_meas=asscalar(expparam['n_meas']),
+                precede_by_tracking=precede_by_tracking
             )
         else:
-            raise RuntimeError('Unknown experiment.')
-            
-        try:
-            # try to clear the read buffer just in case the old job
-            # was not collected
-            self._tcp_client.recv(8192)
-        except:
-            pass
-        self._tcp_client.send(job_string)
+            raise AttributeError('Unknown experiment.')
 
-        return TCPExperimentJob(self._tcp_client)
+        self._job_client.flush_input()
+        self._job_client.write_string(job_string)
+
+        return TCPExperimentJob(job_id, self._results_client)
 
 
 #-------------------------------------------------------------------------------
@@ -1147,7 +1220,7 @@ class TrackingHeuristic(qi.Heuristic):
                 precede_by_tracking = False
             job = experiment.run_experiment(eps, precede_by_tracking)
             while not job.is_complete:
-                sleep(0.4)
+                time.sleep(0.4)
             counts[idx_repetition, :] = job.get_result().triplet
             
         bright, dark, signal = np.sum(counts, axis=0)
