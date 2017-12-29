@@ -32,6 +32,34 @@ def asscalar(a):
         return np.asscalar(a)
     except AttributeError:
         return a
+        
+def compute_run_time(expparam):
+    """
+    Computes the amount of time it takes to run all repetitions
+    of the given experiment back to back.
+    """
+    # this is the amount of time in AdaptiveTwoPulse.pp not
+    # spent on the experiment's pulse sequence, in microseconds
+    other_time = 27.65
+    
+    if expparam['emode'] == m.RabiRamseyModel.RABI:
+        pulse_time = expparam['t']
+    else:
+        pulse_time = 2 * expparam['t'] + expparam['tau']
+        
+    return float(1e-6 * expparam['n_meas'] * (pulse_time + other_time))
+    
+def compute_eff_num_bits(n_meas, updater):
+    """
+    Computes the number of effective number of strong measurements
+    given the current value of the references.
+    """
+    # hopefully hardcoding these indices doesn't come back to 
+    # haunt me
+    alpha = updater.particle_locations[:,5]
+    beta = updater.particle_locations[:,6]
+    n_eff = (alpha - beta)**2 / (5 * (alpha + beta))
+    return float(n_meas * np.dot(updater.particle_weights, n_eff))
 
 
 def add_counts_by_unique_expparams(df):
@@ -155,8 +183,47 @@ def extract_panel_data(panel, y_column, idxs=None, x_column=None, skip_first=Fal
             fun = interp1d(x_data_all[idx_df, :], y_data[idx_df, ...], axis=0)
             y_data[idx_df, ...] = fun(x_data)
         
-        
     return x_data, y_data
+    
+def simulate_rabi(modelparams, min_t=0, max_t=2,n=201, wo=0):
+    """
+    Convenience function to simulate a Ramsey experiment under the 
+    given hypothetical parameters.
+    """
+    sim_eps = rabi_sweep(min_t=min_t, max_t=max_t, n=n, wo=wo)
+    ham_model = m.RabiRamseyModel()
+    simulation = self.ham_model.likelihood(
+        0, np.atleast_2d(modelparams), sim_eps
+    ).flatten()
+    return sim_eps['t'], simulation
+    
+def simulate_ramsey(modelparams, min_tau=0, max_tau=2, tp=0.022, n=201, wo=0, phi=0):
+    """
+    Convenience function to simulate a Ramsey experiment under the 
+    given hypothetical parameters.
+    """
+    sim_eps = ramsey_sweep(min_tau=min_tau, max_tau=max_tau, tp=tp, n=n, wo=wo, phi=0)
+    ham_model = m.RabiRamseyModel()
+    simulation = self.ham_model.likelihood(
+        0, np.atleast_2d(modelparams), sim_eps
+    ).flatten()
+    return sim_eps['tau'], simulation
+    
+def simulate_ramsey_fft(modelparams, min_tau=0, max_tau=2, tp=0.022, n=201, wo=0, phi=0):
+    """
+    Takes the DFT of the results of `simulate_ramsey`
+    """
+    ramsey_x, ramsey_p = simulate_ramsey(
+        modelparams, 
+        min_tau=min_tau, max_tau=max_tau, 
+        tp=tp, n=n, wo=wo, phi=phi
+    )
+    
+    freqs = np.fft.fftshift(np.fft.fftfreq(ramsey_x.size, ramsey_x[1]-ramsey_x[0]))
+    ramsey_fft = np.fft.fftshift(np.fft.fft(ramsey_p-np.mean(ramsey_p)))
+    
+    return freqs, ramsey_fft
+
     
 #-------------------------------------------------------------------------------
 # DATA STORAGE
@@ -226,35 +293,6 @@ def new_experiment_dataframe(heuristic):
     
     return df
     
-def compute_run_time(expparam):
-    """
-    Computes the amount of time it takes to run all repetitions
-    of the given experiment back to back.
-    """
-    # this is the amount of time in AdaptiveTwoPulse.pp not
-    # spent on the experiment's pulse sequence, in microseconds
-    other_time = 27.65
-    
-    if expparam['emode'] == m.RabiRamseyModel.RABI:
-        pulse_time = expparam['t']
-    else:
-        pulse_time = 2 * expparam['t'] + expparam['tau']
-        
-    return float(1e-6 * expparam['n_meas'] * (pulse_time + other_time))
-    
-def compute_eff_num_bits(n_meas, updater):
-    """
-    Computes the number of effective number of strong measurements
-    given the current value of the references.
-    """
-    # hopefully hardcoding these indices doesn't come back to 
-    # haunt me
-    alpha = updater.particle_locations[:,5]
-    beta = updater.particle_locations[:,6]
-    n_eff = (alpha - beta)**2 / (5 * (alpha + beta))
-    return float(n_meas * np.dot(updater.particle_weights, n_eff))
-    
-
 def append_experiment_data(
         dataframe, 
         expparam=None, heuristic=None, 
@@ -402,6 +440,10 @@ class HeuristicData(object):
         self.panel.to_pickle(self.filename)
         
 class DataFrameLiveView(object):
+    """
+    Presents a DataFrame as constructed by `new_experiment_dataframe` 
+    as a figure, with a method to efficiently update the figure.
+    """
     def __init__(self, dataframe):
         self.df = dataframe
         self.ham_model = m.RabiRamseyModel()
