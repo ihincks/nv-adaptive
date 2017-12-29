@@ -9,6 +9,9 @@ import qinfer as qi
 import numpy as np
 import models as m
 import dateutil
+import socket
+import datetime
+from pandas import DataFrame, Panel, Timestamp, Timedelta, read_pickle
 
 #-------------------------------------------------------------------------------
 # CONSTANTS
@@ -26,6 +29,16 @@ SOME_PRIOR = qi.UniformDistribution(np.array([
 #-------------------------------------------------------------------------------
 # FUNCTIONS
 #-------------------------------------------------------------------------------
+
+def get_now():
+    return Timestamp(datetime.datetime.now())
+
+
+def asscalar(a):
+    try:
+        return np.asscalar(a)
+    except AttributeError:
+        return a
 
 def rabi_sweep(min_t=None, max_t=0.3, n=50, n_meas=None, wo=0, mode=None):
     ham_model = m.RabiRamseyModel()

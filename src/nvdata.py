@@ -11,6 +11,7 @@ import datetime
 from pandas import DataFrame, Panel, Timestamp, Timedelta, read_pickle
 import wquantiles
 from scipy.interpolate import interp1d
+from adaptive import rabi_sweep, ramsey_sweep
 
 #-------------------------------------------------------------------------------
 # CONSTANTS
@@ -192,7 +193,7 @@ def simulate_rabi(modelparams, min_t=0, max_t=2,n=201, wo=0):
     """
     sim_eps = rabi_sweep(min_t=min_t, max_t=max_t, n=n, wo=wo)
     ham_model = m.RabiRamseyModel()
-    simulation = self.ham_model.likelihood(
+    simulation = ham_model.likelihood(
         0, np.atleast_2d(modelparams), sim_eps
     ).flatten()
     return sim_eps['t'], simulation
@@ -204,7 +205,7 @@ def simulate_ramsey(modelparams, min_tau=0, max_tau=2, tp=0.022, n=201, wo=0, ph
     """
     sim_eps = ramsey_sweep(min_tau=min_tau, max_tau=max_tau, tp=tp, n=n, wo=wo, phi=0)
     ham_model = m.RabiRamseyModel()
-    simulation = self.ham_model.likelihood(
+    simulation = ham_model.likelihood(
         0, np.atleast_2d(modelparams), sim_eps
     ).flatten()
     return sim_eps['tau'], simulation
