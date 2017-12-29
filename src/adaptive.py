@@ -138,7 +138,7 @@ class NVDriftStepper(StochasticStepper):
             ):
         self._background = background
         self._nu = OrnsteinUhlenbeckStepper(0, sigma_nu, theta_nu, mu_alpha - background, sigma_alpha)
-        self._kappa = OrnsteinUhlenbeckStepper(mu_kappa, sigma_kappa, theta_kappa, 0, 0)
+        self._kappa = OrnsteinUhlenbeckStepper(1, sigma_kappa, theta_kappa, mu_kappa, 0)
         super(NVDriftStepper, self).__init__()
     
     def _set_value(self):
