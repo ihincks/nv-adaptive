@@ -186,7 +186,7 @@ def extract_panel_data(panel, y_column, idxs=None, x_column=None, skip_first=Fal
         
     return x_data, y_data
     
-def simulate_rabi(modelparams, min_t=0, max_t=2,n=201, wo=0):
+def simulate_rabi(modelparams, min_t=0, max_t=1,n=201, wo=0):
     """
     Convenience function to simulate a Ramsey experiment under the 
     given hypothetical parameters.
@@ -197,6 +197,21 @@ def simulate_rabi(modelparams, min_t=0, max_t=2,n=201, wo=0):
         0, np.atleast_2d(modelparams), sim_eps
     ).flatten()
     return sim_eps['t'], simulation
+    
+def simulate_rabi_fft(modelparams, min_t=0, max_t=2, n=201, wo=0):
+    """
+    Takes the DFT of the results of `simulate_ramsey`
+    """
+    rabi_x, rabi_p = simulate_rabi(
+        modelparams, 
+        min_t=min_t, max_t=m_t, 
+        n=n, wo=wo
+    )
+    
+    freqs = np.fft.fftshift(np.fft.fftfreq(rabi_x.size, rabi_x[1]-rabi_x[0]))
+    rabi_fft = np.fft.fftshift(np.fft.fft(rabi_p-np.mean(rabi_p)))
+    
+    return freqs, rabi_fft
     
 def simulate_ramsey(modelparams, min_tau=0, max_tau=2, tp=0.022, n=201, wo=0, phi=0):
     """
