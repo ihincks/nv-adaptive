@@ -485,12 +485,15 @@ class TopChefRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
         
         if expparam['emode'] == m.RabiRamseyModel.RABI:
             eps['pulse1_time'] = 1e-6 * expparam['t']
+            eps['pulse1_offset_freq'] = expparam['wo']
         elif expparam['emode'] == m.RabiRamseyModel.RAMSEY:
             eps['delay_time'] = 1e-6 * expparam['tau']
             eps['pulse1_time'] = 1e-6 * expparam['t']
             eps['pulse2_time'] = 1e-6 * expparam['t']
             eps['pulse2_phase'] = expparam['phi']
-        eps['center_freq'] = eps['center_freq'] - 1e6 * expparam['wo']
+            eps['pulse1_offset_freq'] = expparam['wo']
+            eps['pulse2_offset_freq'] = expparam['wo']
+        eps['center_freq'] = eps['center_freq']
         eps['number_of_repetitions'] = expparam['n_meas']
         
         if precede_by_tracking:
@@ -518,7 +521,7 @@ class TCPRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
     
     @staticmethod    
     def make_job_string(n_meas=100000, meas_time=800e-9, center_freq=2.87e9, 
-            intermediate_freq=0, adiabatic_power=0, delay_time=0,
+            intermediate_freq=50e6, adiabatic_power=-18, delay_time=0,
             pulse1_time=0, pulse1_phase=0, pulse1_power=0, pulse1_offset_freq=0,
             pulse1_modulation_freq=0, pulse1_modulation_phase=0,
             pulse2_time=0, pulse2_phase=0, pulse2_power=0, pulse2_offset_freq=0,
@@ -543,14 +546,13 @@ class TCPRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
     def run_experiment(self, expparam, precede_by_tracking=False):
         super(TCPRabiRamseyExperimentRunner, self).run_experiment(expparam)
         
-        center_freq = asscalar(2.87e9 - 1e6 * expparam['wo'])
         job_id = np.random.randint(1e6)
         
         if expparam['emode'] == m.RabiRamseyModel.RABI:
             job_string = self.make_job_string(
                 job_id=job_id,
                 pulse1_time = asscalar(1e-6 * expparam['t']), 
-                center_freq=center_freq,
+                pulse1_offset_freq = asscalar(1e6 * expparam['wo']), 
                 n_meas=asscalar(expparam['n_meas']),
                 precede_by_tracking=precede_by_tracking
             )
@@ -560,8 +562,9 @@ class TCPRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
                 delay_time = asscalar(1e-6 * expparam['tau']),
                 pulse1_time = asscalar(1e-6 * expparam['t']),
                 pulse2_time = asscalar(1e-6 * expparam['t']),
+                pulse1_offset_freq = asscalar(1e6 * expparam['wo']), 
+                pulse2_offset_freq = asscalar(1e6 * expparam['wo']), 
                 pulse2_phase = asscalar(expparam['phi']),
-                center_freq=center_freq,
                 n_meas=asscalar(expparam['n_meas']),
                 precede_by_tracking=precede_by_tracking
             )
