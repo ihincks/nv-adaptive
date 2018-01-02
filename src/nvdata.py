@@ -529,8 +529,8 @@ class DataFrameLiveView(object):
         
         ts = eps_rabi['t']
         max_t = 0 if ts.size == 0 else np.amax(ts)
-        sim_ts = np.linspace(0, max(max_t,0.2), 100)
-        sim_eps = rabi_sweep(1, n=100)
+        sim_ts = np.linspace(0, max(max_t,1), 200)
+        sim_eps = rabi_sweep(1, n=200)
         sim_eps['t'] = sim_ts
         simulation =  self.ham_model.likelihood(
             0, current_mean[np.newaxis, :], sim_eps
