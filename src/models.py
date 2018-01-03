@@ -539,14 +539,14 @@ class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
     ) = range(5)
 
     def __init__(self, max_offset, n_offset):
-        super(RabiRamseyModel, self).__init__()
-        
         self.max_offset = max_offset
         self.n_offset = n_offset
         self.neg_offsets = np.linspace(-max_offset, 0, n_offset+1)[:-1]
         self.pos_offsets = np.linspace(0, max_offset, n_offset+1)[1:]
         self.all_offsets = np.linspace(-max_offset, max_offset, 2*n_offset+1)
 
+        super(RabiRamseyExtendedModel, self).__init__()
+        
         self.simulator = {
             self.RABI:   rabi_cached,
             self.RAMSEY: two_pulse_cached
@@ -564,7 +564,7 @@ class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
         pos = modelparams[:,5+self.n_offset:5+2*self.n_offset]
         return CubicSpline(
             self.all_offsets,
-            wr * np.concatenate(
+            wr[:,np.newaxis] * np.concatenate(
                 [neg, np.ones((modelparams.shape[0],1)), pos], 
                 axis=1
             ),
