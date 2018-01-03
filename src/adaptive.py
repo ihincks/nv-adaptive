@@ -692,6 +692,29 @@ class LinearHeuristic(qi.Heuristic):
         self._idx += 1
         return eps
         
+class PredeterminedSingleAdaptHeuristic(qi.Heuristic):
+    def __init__(self, updater, rabi_eps, ramsey_eps, n_meas=100, name=None):
+        self.updater = updater
+        self._rabi_eps = rabi_eps
+        self._ramsey_eps = rabi_eps
+        
+        self._idx = 0
+        self.name = "Predetermined with single adaptation Heuristic" if name is None else name
+        
+    def __call__(self, tp):
+        idx = self._idx
+        if idx < self._rabi_eps.size:
+            eps = self._rabi_eps[idx, np.newaxis]
+        else:
+            idx -= self._rabi_eps
+            if idx == 0:
+                self._tp = tp
+            eps = self._ramsey_eps[idx, np.newaxis]
+            eps['tau'] = self._tp
+
+        self._idx += 1
+        return eps
+        
 class TrackingHeuristic(qi.Heuristic):
     """
     Wraps an existing heuristic, so that calling it returns a tuple 
