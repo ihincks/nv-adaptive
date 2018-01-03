@@ -9,6 +9,7 @@ import numpy as np
 import scipy.io as sio
 from scipy.linalg import expm
 from scipy.special import xlogy, gammaln
+from scipy.interpolate import CubicSpline
 from vexpm import vexpm
 from vexpm import matmul
 from fractions import gcd as fgcd
@@ -220,6 +221,72 @@ def ramsey_cached(tp, tau, phi, wr, we, dwc, an, T2inv):
         pr0[idx_t, :] = np.real(p) / 3
     return pr0
     
+def two_pulse_cached(tp, tp2, tau, phi, wr, we, dwc, an, T2inv):
+    """
+    Return signal due to Ramsey experiment with
+    given parameters. Pulse sequence is tp)_x --- tau --- tp2)_x
+    """
+    n_models = wr.shape[0]
+    base_timestep_tp = gcd(np.concatenate([tp, tp2]) * 1000) / 1000
+    base_timestep_tau = gcd(tau * 1000) / 1000
+    # hamiltonian without nitrogen during rabi
+    H1 = (wr[:, np.newaxis, np.newaxis] * vecSx(n_models) \
+        + we[:, np.newaxis, np.newaxis] * vecSz(n_models) \
+        + dwc[:, np.newaxis, np.newaxis] * vecSz2(n_models))
+    # hamiltonian for just nitrogen
+    HA = an[:, np.newaxis, np.newaxis] * vecSz(n_models)
+    # supergenerator during wait
+    G1 = (we[:, np.newaxis, np.newaxis] * vecGz(n_models) \
+        + dwc[:, np.newaxis, np.newaxis] * vecGz2(n_models) \
+        + T2inv[:, np.newaxis, np.newaxis] * vecLz(n_models))
+    # supergenerator for just nitrogen
+    GA = an[:, np.newaxis, np.newaxis] * vecGz(n_models)
+    
+    Sm = CachedPropagator(G1 - GA, base_timestep=base_timestep_tau, max_expected_time=4)
+    S0 = CachedPropagator(G1, base_timestep=base_timestep_tau, max_expected_time=4)
+    Sp = CachedPropagator(G1 + GA, base_timestep=base_timestep_tau, max_expected_time=4)
+    Um = CachedPropagator(H1 - HA, base_timestep=base_timestep_tp, max_expected_time=0.1)
+    U0 = CachedPropagator(H1, base_timestep=base_timestep_tp, max_expected_time=0.1)
+    Up = CachedPropagator(H1 + HA, base_timestep=base_timestep_tp, max_expected_time=0.1)
+    
+    pr0 = np.empty((tp.size, wr.size))
+    for idx_t in range(tp.size):
+        t1, t2, t3 = tp[idx_t], tau[idx_t], tp2[idx_t]
+
+        # states after square pulses
+        sm = Um(t1)[...,1]
+        s0 = U0(t1)[...,1]
+        sp = Up(t1)[...,1]
+        
+        # convert to vectorized density matrix
+        sm = np.repeat(sm.conj(), 3, axis=-1) * np.reshape(np.tile(sm, 3), (-1, 9))
+        sm = sm[...,np.newaxis]
+        s0 = np.repeat(s0.conj(), 3, axis=-1) * np.reshape(np.tile(s0, 3), (-1, 9))
+        s0 = s0[...,np.newaxis]
+        sp = np.repeat(sp.conj(), 3, axis=-1) * np.reshape(np.tile(sp, 3), (-1, 9))
+        sp = sp[...,np.newaxis]
+        
+        # states after second square pulses
+        sm2 = Um(t3)[...,1]
+        s02 = U0(t3)[...,1]
+        sp2 = Up(t3)[...,1]
+        
+        # convert to vectorized density matrix
+        sm2 = np.repeat(sm2, 3, axis=-1) * np.reshape(np.tile(sm2.conj(), 3), (-1, 9))
+        sm2 = sm2[...,np.newaxis]
+        s02 = np.repeat(s02, 3, axis=-1) * np.reshape(np.tile(s02.conj(), 3), (-1, 9))
+        s02 = s02[...,np.newaxis]
+        sp2 = np.repeat(sp2, 3, axis=-1) * np.reshape(np.tile(sp2, 3).conj(), (-1, 9))
+        sp2 = sp2[...,np.newaxis]
+        
+        # sandwich wait between square pulses
+        p = matmul(sm2.swapaxes(-2,-1), matmul(Sm(t2), sm))[...,0,0]
+        p = p + matmul(s02.swapaxes(-2,-1), matmul(S0(t2), s0))[...,0,0]
+        p = p + matmul(sp2.swapaxes(-2,-1), matmul(Sp(t2), sp))[...,0,0]
+        
+        pr0[idx_t, :] = np.real(p) / 3
+    return pr0
+    
 def rabi(tp, tau, phi, wr, we, dwc, an, T2inv):
     n_models = wr.shape[0]
     pr0 = np.empty((tp.size, wr.size))
@@ -411,7 +478,7 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
         tau = expparams['tau'] 
         phi = expparams['phi']
         
-        # note that all wo have to be the same, this considerably simplifies simulator efficiency
+        # note that all wo have to be the same, this considerably improves simulator efficiency
         wo = expparams['wo'][0] 
         if not np.allclose(expparams['wo'], wo):
             warnings.warn('In a given likelihood call, all carrier offsets must be identical')        
@@ -428,6 +495,169 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
         if ramsey_mask.sum() > 0:
             pr0[ramsey_mask] = self.simulator[self.RAMSEY](
                     t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc-wo, an, T2inv
+                )
+
+        return qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0.T)
+        
+class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
+    r"""
+    Generalizes RabiRamseyModel slightly to include:
+        1) different rabi frequencies at different offsets
+        2) different pulse lengths on the ramsey hard pulses
+    
+    Model parameters:
+    0: :math:`\Omega`, Rabi strength (MHz); coefficient of Sx
+    1: :math:`\omega_e`, Zeeman frequency (MHz); coefficient of Sz
+    2: :math:`\Delta \omega_c`, ZFS detuning (MHz); coefficient of Sz^2
+    3: :math:`\A_N`, Nitrogen hyperfine splitting (MHz); modeled as incoherent average  
+    4: :math:`T_2^-1`, inverse of electron T2* (MHz)
+    5: relative amplitudes of rabi frequencies
+
+    Experiment parameters:
+    mode: Specifies whether a reference or signal count is being performed.
+    t:   Pulse width
+    tp2: Pulse width of second ramsey pulse.
+    tau: Ramsey wait time (only relevent if mode is `RabiRamseyModel.RAMSEY`)
+    phi: Ramsey phase between pulses (")
+    
+    :param float max_offset: The maximum offset in MHz from 2.87GHz that an 
+        experiment will be run at.
+    :param int n_offset: The number of points on one side of 2.87GHz 
+        to use in the interpolation function that describes the amplitude
+        transfer function. There will be a total of `2*n_offset` unitless model
+        parameters used. The amplitude at 0MHz offset is 1, with frequency 
+        corresponding to the `\omega_e` parameter.
+    """
+    
+    RABI = 0
+    RAMSEY = 1
+
+    (
+        IDX_OMEGA, IDX_ZEEMAN,
+        IDX_DCENTER,
+        IDX_A_N, IDX_T2_INV
+    ) = range(5)
+
+    def __init__(self, max_offset, n_offset):
+        super(RabiRamseyModel, self).__init__()
+        
+        self.max_offset = max_offset
+        self.n_offset = n_offset
+        self.neg_offsets = np.linspace(-max_offset, 0, n_offset+1)[:-1]
+        self.pos_offsets = np.linspace(0, max_offset, n_offset+1)[1:]
+        self.all_offsets = np.linspace(-max_offset, max_offset, 2*n_offset+1)
+
+        self.simulator = {
+            self.RABI:   rabi_cached,
+            self.RAMSEY: two_pulse_cached
+        }
+
+        self._domain = qi.IntegerDomain(min=0, max=1)
+
+    @property
+    def n_modelparams(self):
+        return len(self.modelparam_names)
+        
+    def transfer_function(self, modelparams):
+        wr = modelparams[:,0]
+        neg = modelparams[:,5:5+self.n_offset]
+        pos = modelparams[:,5+self.n_offset:5+2*self.n_offset]
+        return CubicSpline(
+            self.all_offsets,
+            wr * np.concatenate(
+                [neg, np.ones((modelparams.shape[0],1)), pos], 
+                axis=1
+            ),
+            axis=1
+        )
+        
+    def rabi_frequency(self, offset, modelparams):
+        return self.transfer_function(modelparams)(offset)
+
+    @property
+    def modelparam_names(self):
+        return [
+            r'\Omega',
+            r'\omega_e',
+            r'\Delta\omega_c',
+            r'A_N',
+            r'T_2^{-1}'
+        ] + [
+            'a_{{{}MHz}}'.format(offset) for offset in self.neg_offsets
+        ] + [
+            'a_{{{}MHz}}'.format(offset) for offset in self.pos_offsets
+        ]
+        
+    @property
+    def expparams_dtype(self):
+        return [('t', 'float'), ('tau', 'float'), ('tp2', 'float'), ('phi', 'float'), ('wo','float'), ('emode', 'int')]
+        
+    @property
+    def is_n_outcomes_constant(self):
+        return True
+        
+    @staticmethod
+    def are_models_valid(modelparams):
+        return np.all(
+            [
+                # Require that some frequencies be positive.
+                modelparams[:, RabiRamseyModel.IDX_OMEGA] >= 0,
+                modelparams[:, RabiRamseyModel.IDX_ZEEMAN] >= 0,
+                modelparams[:, RabiRamseyModel.IDX_A_N] >= 0,
+
+                # Require that T₂ is positive.
+                modelparams[:, RabiRamseyModel.IDX_T2_INV] >= 0
+            ],
+            axis=0
+        )
+        
+    def domain(self, expparams):
+        return self._domain if expparams is None else [self._domain]*expparams.shape[0]
+
+    def n_outcomes(self, expparams):
+        return 2
+        
+    #@MemoizeLikelihood
+    def likelihood(self, outcomes, modelparams, expparams):
+        """
+        Returns the likelihood of measuring |0> under a projective
+        measurement.
+        """
+        
+        # note that all wo have to be the same, this considerably improves simulator efficiency
+        wo = expparams['wo'][0] 
+        if not np.allclose(expparams['wo'], wo):
+            warnings.warn('In a given likelihood call, all carrier offsets must be identical') 
+        if np.abs(wo) > self.max_offset:
+            warnings.warn('Offset value {} is too big.'.format(wo)) 
+        
+        # get model details for all particles
+        wr    = self.rabi_frequency(wo, modelparams)
+        we    = modelparams[:, self.IDX_ZEEMAN]
+        dwc   = modelparams[:, self.IDX_DCENTER]
+        an    = modelparams[:, self.IDX_A_N]
+        T2inv = modelparams[:, self.IDX_T2_INV]
+        
+        # get expparam details
+        mode = expparams['emode']
+        t = expparams['t'] 
+        tp2 = expparams['tp2']
+        tau = expparams['tau'] 
+        phi = expparams['phi']
+   
+        
+        # figure out which experements are rabi and ramsey
+        rabi_mask, ramsey_mask = mode == self.RABI, mode == self.RAMSEY
+        
+        # run both simulations
+        pr0 = np.empty((expparams.shape[0], modelparams.shape[0]))
+        if rabi_mask.sum() > 0:
+            pr0[rabi_mask] = self.simulator[self.RABI](
+                    t[rabi_mask], 0, 0, 0, wr, we, dwc-wo, an, T2inv
+                )
+        if ramsey_mask.sum() > 0:
+            pr0[ramsey_mask] = self.simulator[self.RAMSEY](
+                    t[ramsey_mask], tp2[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc-wo, an, T2inv
                 )
 
         return qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0.T)
