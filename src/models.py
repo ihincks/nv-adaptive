@@ -590,7 +590,7 @@ class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
         
     @property
     def expparams_dtype(self):
-        return [('t', 'float'), ('tau', 'float'), ('tp2', 'float'), ('phi', 'float'), ('wo','float'), ('emode', 'int')]
+        return [('t', 'float'), ('tp2', 'float'), ('tau', 'float'), ('phi', 'float'), ('wo','float'), ('emode', 'int')]
         
     @property
     def is_n_outcomes_constant(self):
@@ -653,7 +653,7 @@ class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
         pr0 = np.empty((expparams.shape[0], modelparams.shape[0]))
         if rabi_mask.sum() > 0:
             pr0[rabi_mask] = self.simulator[self.RABI](
-                    t[rabi_mask], 0, 0, 0, wr, we, dwc-wo, an, T2inv
+                    t[rabi_mask], 0, 0, wr, we, dwc-wo, an, T2inv
                 )
         if ramsey_mask.sum() > 0:
             pr0[ramsey_mask] = self.simulator[self.RAMSEY](
