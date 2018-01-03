@@ -41,11 +41,12 @@ def asscalar(a):
         return a
 
 def rabi_sweep(min_t=None, max_t=0.3, n=50, n_meas=None, wo=0, mode=None):
-    ham_model = m.RabiRamseyModel()
+    ham_model = m.RabiRamseyExtendedModel(1,1)
     if min_t is None:
         min_t = max_t / n
     vals = [
         np.linspace(min_t, max_t, n),
+        np.zeros(n),
         np.zeros(n),
         np.zeros(n),
         np.ones(n) * wo,
@@ -61,12 +62,14 @@ def rabi_sweep(min_t=None, max_t=0.3, n=50, n_meas=None, wo=0, mode=None):
     rabi_eps = np.array(list(zip(*rabi_eps.T)), dtype=dtype)
     return rabi_eps
 
-def ramsey_sweep(min_tau=None, max_tau=2, tp=0.01, phi=0, n=50, n_meas=None, wo=0, mode=None):
-    ham_model = m.RabiRamseyModel()
+def ramsey_sweep(min_tau=None, max_tau=2, tp=0.01, tp2=None, phi=0, n=50, n_meas=None, wo=0, mode=None):
+    ham_model = m.RabiRamseyExtendedModel(1,1)
+    tp2 = tp if tp2 is None else tp2
     if min_tau is None:
         min_tau = max_tau / n
     vals = [
         tp * np.ones(n),
+        tp2 * np.ones(n),
         np.linspace(min_tau, max_tau, n),
         phi * np.ones(n),
         np.ones(n) * wo,
