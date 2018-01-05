@@ -241,14 +241,17 @@ def simulate_ramsey_fft(modelparams, min_tau=0, max_tau=2, tp=0.022, n=201, wo=0
     return freqs, ramsey_fft
     
 def riffle_dataframes(dfs):
-    new_df = dfs[0].loc[0,:].copy()
+    new_df = new_experiment_dataframe(None)
     n_failures = 0
     idx_row = 1
     while n_failures < len(dfs):
         n_failures = 0
         for df in dfs:
             try:
-                new_df = new_df.append(df[idx_row, :])
+                new_df = new_df.append(
+                        dict(DataFrame(df.loc[idx_row, :]).itertuples()),
+                        ignore_index=True
+                    )
             except:
                 n_failures += 1
         idx_row += 1
