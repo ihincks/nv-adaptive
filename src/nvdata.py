@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import models as m
 import datetime
-from pandas import DataFrame, Panel, Timestamp, Timedelta, read_pickle
+from pandas import DataFrame, Panel, Timestamp, Timedelta, read_pickle, concat
 import wquantiles
 from scipy.interpolate import interp1d
 from adaptive import rabi_sweep, ramsey_sweep, DataFrameHeuristic, perform_update, ExperimentResult, OfflineExperimentJob
@@ -239,6 +239,20 @@ def simulate_ramsey_fft(modelparams, min_tau=0, max_tau=2, tp=0.022, n=201, wo=0
     ramsey_fft = np.fft.fftshift(np.fft.fft(ramsey_p-np.mean(ramsey_p)))
     
     return freqs, ramsey_fft
+    
+def riffle_dataframes(dfs):
+    new_df = dfs[0].loc[0,:].copy()
+    n_failures = 0
+    idx_row = 1
+    while n_failures < len(dfs):
+        n_failures = 0
+        for df in dfs:
+            try:
+                new_df = new_df.append(df[idx_row, :])
+            except:
+                n_failures += 1
+        idx_row += 1
+    return new_df
     
 def reprocess_dataframe(df, updater):
     heuristic = DataFrameHeuristic(updater, df)
