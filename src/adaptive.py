@@ -40,18 +40,30 @@ def asscalar(a):
     except AttributeError:
         return a
 
-def rabi_sweep(min_t=None, max_t=0.3, n=50, n_meas=None, wo=0, mode=None):
-    ham_model = m.RabiRamseyExtendedModel(1,1)
-    if min_t is None:
-        min_t = max_t / n
-    vals = [
-        np.linspace(min_t, max_t, n),
-        np.zeros(n),
-        np.zeros(n),
-        np.zeros(n),
-        np.ones(n) * wo,
-        np.ones(n) * ham_model.RABI
-    ]
+def rabi_sweep(min_t=None, max_t=0.3, n=50, n_meas=None, wo=0, mode=None, notp2=True):
+    if not notp2:
+        ham_model = m.RabiRamseyExtendedModel(1,1)
+        if min_t is None:
+            min_t = max_t / n
+        vals = [
+            np.linspace(min_t, max_t, n),
+            np.zeros(n),
+            np.zeros(n),
+            np.zeros(n),
+            np.ones(n) * wo,
+            np.ones(n) * ham_model.RABI
+        ]
+    else:
+        ham_model = m.RabiRamseyModel()
+        if min_t is None:
+            min_t = max_t / n
+        vals = [
+            np.linspace(min_t, max_t, n),
+            np.zeros(n),
+            np.zeros(n),
+            np.ones(n) * wo,
+            np.ones(n) * ham_model.RABI
+        ]
     dtype = ham_model.expparams_dtype
     if n_meas is not None:
         mode = m.ReferencedPoissonModel.SIGNAL if mode is None else mode
@@ -62,19 +74,32 @@ def rabi_sweep(min_t=None, max_t=0.3, n=50, n_meas=None, wo=0, mode=None):
     rabi_eps = np.array(list(zip(*rabi_eps.T)), dtype=dtype)
     return rabi_eps
 
-def ramsey_sweep(min_tau=None, max_tau=2, tp=0.01, tp2=None, phi=0, n=50, n_meas=None, wo=0, mode=None):
-    ham_model = m.RabiRamseyExtendedModel(1,1)
-    tp2 = tp if tp2 is None else tp2
-    if min_tau is None:
-        min_tau = max_tau / n
-    vals = [
-        tp * np.ones(n),
-        tp2 * np.ones(n),
-        np.linspace(min_tau, max_tau, n),
-        phi * np.ones(n),
-        np.ones(n) * wo,
-        np.ones(n) * ham_model.RAMSEY
-    ]
+def ramsey_sweep(min_tau=None, max_tau=2, tp=0.01, tp2=None, phi=0, n=50, n_meas=None, wo=0, mode=None, notp2=True):
+    if not notp2 or tp2 is not None:
+        ham_model = m.RabiRamseyExtendedModel(1,1)
+        tp2 = tp if tp2 is None else tp2
+        if min_tau is None:
+            min_tau = max_tau / n
+        vals = [
+            tp * np.ones(n),
+            tp2 * np.ones(n),
+            np.linspace(min_tau, max_tau, n),
+            phi * np.ones(n),
+            np.ones(n) * wo,
+            np.ones(n) * ham_model.RAMSEY
+        ]
+    else:
+        ham_model = m.RabiRamseyModel()
+        if min_tau is None:
+            min_tau = max_tau / n
+        vals = [
+            tp * np.ones(n),
+            np.linspace(min_tau, max_tau, n),
+            phi * np.ones(n),
+            np.ones(n) * wo,
+            np.ones(n) * ham_model.RAMSEY
+        ]
+    dtype = ham_model.expparams_dtype
     dtype = ham_model.expparams_dtype
     if n_meas is not None:
         mode = m.ReferencedPoissonModel.SIGNAL if mode is None else mode
@@ -706,7 +731,7 @@ class PredeterminedSingleAdaptHeuristic(qi.Heuristic):
         if idx < self._rabi_eps.size:
             eps = self._rabi_eps[idx, np.newaxis]
         else:
-            idx -= self._rabi_eps
+            idx -= self._rabi_eps.size
             if idx == 0:
                 self._tp = tp
             eps = self._ramsey_eps[idx, np.newaxis]
