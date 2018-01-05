@@ -40,8 +40,8 @@ def asscalar(a):
     except AttributeError:
         return a
 
-def rabi_sweep(min_t=None, max_t=0.3, n=50, n_meas=None, wo=0, mode=None, notp2=True):
-    if not notp2:
+def rabi_sweep(min_t=None, max_t=0.3, n=50, n_meas=None, wo=0, mode=None, include_tp2=False):
+    if include_tp2:
         ham_model = m.RabiRamseyExtendedModel(1,1)
         if min_t is None:
             min_t = max_t / n
@@ -74,8 +74,8 @@ def rabi_sweep(min_t=None, max_t=0.3, n=50, n_meas=None, wo=0, mode=None, notp2=
     rabi_eps = np.array(list(zip(*rabi_eps.T)), dtype=dtype)
     return rabi_eps
 
-def ramsey_sweep(min_tau=None, max_tau=2, tp=0.01, tp2=None, phi=0, n=50, n_meas=None, wo=0, mode=None, notp2=True):
-    if not notp2 or tp2 is not None:
+def ramsey_sweep(min_tau=None, max_tau=2, tp=0.01, tp2=None, phi=0, n=50, n_meas=None, wo=0, mode=None, include_tp2=False):
+    if include_tp2 or tp2 is not None:
         ham_model = m.RabiRamseyExtendedModel(1,1)
         tp2 = tp if tp2 is None else tp2
         if min_tau is None:
