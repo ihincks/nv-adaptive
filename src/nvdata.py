@@ -57,8 +57,9 @@ def compute_eff_num_bits(n_meas, updater):
     """
     # hopefully hardcoding these indices doesn't come back to 
     # haunt me
-    alpha = updater.particle_locations[:,5]
-    beta = updater.particle_locations[:,6]
+    n_mps = updater.model.base_model.n_modelparams
+    alpha = updater.particle_locations[:,n_mps]
+    beta = updater.particle_locations[:,n_mps+1]
     n_eff = (alpha - beta)**2 / (5 * (alpha + beta))
     return float(n_meas * np.dot(updater.particle_weights, n_eff))
 
@@ -204,7 +205,7 @@ def simulate_rabi_fft(modelparams, min_t=0, max_t=2, n=201, wo=0):
     """
     rabi_x, rabi_p = simulate_rabi(
         modelparams, 
-        min_t=min_t, max_t=m_t, 
+        min_t=min_t, max_t=max_t, 
         n=n, wo=wo
     )
     

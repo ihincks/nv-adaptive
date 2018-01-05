@@ -651,7 +651,8 @@ class RiskHeuristic(qi.Heuristic):
         self.risk_history = []
         
     def _update_risk_particles(self):
-        self._risk_taker.particle_locations = self.updater.particle_locations[:,:5]
+        n_mps = self._risk_taker.model.base_model.n_modelparams
+        self._risk_taker.particle_locations = self.updater.particle_locations[:,:n_mps]
         self._risk_taker.particle_weights = self.updater.particle_weights
         
     def __call__(self, tp):
@@ -682,7 +683,8 @@ class InfoGainHeuristic(qi.Heuristic):
         self.risk_history = []
         
     def _update_risk_particles(self):
-        self._risk_taker.particle_locations = self.updater.particle_locations[:,:5]
+        n_mps = self._risk_taker.model.base_model.n_modelparams
+        self._risk_taker.particle_locations = self.updater.particle_locations[:,:n_mps]
         self._risk_taker.particle_weights = self.updater.particle_weights
         
     def __call__(self, tp):
@@ -832,7 +834,8 @@ class TrackingHeuristic(qi.Heuristic):
                 )
             )
             samples = dist.sample(self.updater.n_particles)
-            self.updater.particle_locations[:,5:7] = samples
+            n_mps = self.updater.model.base_model.n_modelparams
+            self.updater.particle_locations[:,n_mps:n_mps+2] = samples
         else:
             warnings.warn('Reference experiment has not been made yet; call `take_initial_reference`')
         
@@ -868,7 +871,8 @@ class TrackingHeuristic(qi.Heuristic):
         
         
     def _decide_on_tracking(self):
-        bright_est = self.updater.est_mean()[5]
+        n_mps = self.updater.model.base_model.n_modelparams
+        bright_est = self.updater.est_mean()[n_mps]
         return bright_est < self._initial_bright_mean - 2 * self.std_mult * self._initial_bright_std
         
         
