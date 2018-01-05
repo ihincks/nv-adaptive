@@ -11,7 +11,7 @@ import datetime
 from pandas import DataFrame, Panel, Timestamp, Timedelta, read_pickle
 import wquantiles
 from scipy.interpolate import interp1d
-from adaptive import rabi_sweep, ramsey_sweep
+from adaptive import rabi_sweep, ramsey_sweep, DataFrameHeuristic, perform_update, ExperimentJob, OfflineExperimentJob
 
 #-------------------------------------------------------------------------------
 # CONSTANTS
@@ -239,7 +239,29 @@ def simulate_ramsey_fft(modelparams, min_tau=0, max_tau=2, tp=0.022, n=201, wo=0
     ramsey_fft = np.fft.fftshift(np.fft.fft(ramsey_p-np.mean(ramsey_p)))
     
     return freqs, ramsey_fft
+    
+def reprocess_dataframe(df, updater):
+    heuristic = DataFrameHeuristic(updater, df)
+    new_df = new_experiment_dataframe(heuristic)
 
+    for idx in range(1,len(df)):
+        result = ExperimentResult(
+            df.bright[idx],
+            df.dark[idx],
+            df.signal[idx]
+        )
+        job = OfflineExperimentJob()
+        job.push_result(*result.triplet)
+        eps = heuristic(None)
+        perform_update(heuristic, eps, result, False)
+        new_df = append_experiment_data(
+            new_df,
+            expparam = eps,
+            heuristic=heuristic,
+            job=job,
+            heuristic_value=None
+        )
+    return new_df
     
 #-------------------------------------------------------------------------------
 # DATA STORAGE
