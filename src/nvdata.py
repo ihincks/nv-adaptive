@@ -11,7 +11,7 @@ import datetime
 from pandas import DataFrame, Panel, Timestamp, Timedelta, read_pickle
 import wquantiles
 from scipy.interpolate import interp1d
-from adaptive import rabi_sweep, ramsey_sweep, DataFrameHeuristic, perform_update, ExperimentJob, OfflineExperimentJob
+from adaptive import rabi_sweep, ramsey_sweep, DataFrameHeuristic, perform_update, ExperimentResult, OfflineExperimentJob
 
 #-------------------------------------------------------------------------------
 # CONSTANTS

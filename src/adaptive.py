@@ -42,12 +42,13 @@ def asscalar(a):
         
 def perform_update(heuristic, expparam, result, preceded_by_tracking, drift_tracking=False):
     updater = heuristic.updater
+    n_meas = int(expparam['n_meas'])
     if drift_tracking:
         if preceded_by_tracking:
             heuristic.reset_reference_prior()
-        expparam['mode'] = ref_model.BRIGHT
+        expparam['mode'] = m.ReferencedPoissonModel.BRIGHT
         bright = updater.update(result.bright, expparam)
-        expparam['mode'] = ref_model.DARK
+        expparam['mode'] = m.ReferencedPoissonModel.DARK
         dark = updater.update(result.dark, expparam)
     else:
         dist = qi.ProductDistribution(
@@ -62,7 +63,7 @@ def perform_update(heuristic, expparam, result, preceded_by_tracking, drift_trac
             )
         n_mps = updater.model.base_model.n_modelparams
         updater.particle_locations[:,n_mps:n_mps+2] = dist.sample(updater.n_particles)
-    expparam['mode'] = ref_model.SIGNAL
+    expparam['mode'] = m.ReferencedPoissonModel.SIGNAL
     updater.update(result.signal, expparam)
 
 def rabi_sweep(min_t=None, max_t=0.3, n=50, n_meas=None, wo=0, mode=None, include_tp2=False):
@@ -775,7 +776,7 @@ class DataFrameHeuristic(qi.Heuristic):
     def __call__(self, tp):
         # we purposely start from idx=1, since there is no expparam there
         self._idx += 1
-        return df.expparam[self._idx]
+        return self.df.expparam[self._idx]
         
 class TrackingHeuristic(qi.Heuristic):
     """
