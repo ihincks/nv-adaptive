@@ -505,7 +505,7 @@ class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
         1) different rabi frequencies at different offsets
         2) different pulse lengths on the two ramsey hard pulses
     
-    Note that we keep the zeeman frequency at 0MHz offset as parameter 2 
+    Note that we keep the zeeman frequency at 0MHz offset as parameter 0 
     for the semblance of backwards-compatibility with RabiRamseyModel, which
     this class supercedes.
     
@@ -670,6 +670,68 @@ class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
                 )
 
         return qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0.T)
+
+class InverseUniform(qi.Distribution):
+    def __init__(self, bounds):
+        super(InverseUniform, self).__init__()
+        self._dist = qi.UniformDistribution(bounds)
+    @property
+    def n_rvs(self):
+        return self._dist.n_rvs
+    def sample(self, n):
+        samples = self._dist.sample(n)
+        return 1 / samples
+
+class ExtendedPrior(qi.Distribution):
+    """
+    Takes a prior for RabiRamseyModel possibly wrapped in ReferencedPoissonModel
+    and turns it into a prior for RabiRamseyExtended model.
+    
+    :param qinfer.Distribution base_prior: A prior for the base distribution.
+    :param int n_offsets: See RabiRamseyExtendedModel.
+    :param float max_offset: See RabiRamseyExtendedModel.
+    :param float unit_std: Std per MHz of the transfer function. 
+        For example, 0.1 says something like 0.1MHz change
+        in frequency allowed per MHz of distance away from 0MHz offset.
+    """
+    def __init__(self, base_prior, n_offsets, max_offset, unit_std):
+        assert base_prior.n_rvs in [5,7]
+        self.has_ref = base_prior.n_rvs == 7
+        
+        self.base_prior = base_prior
+        self.n_offsets = n_offsets
+        self.max_offset = max_offset
+        # it is common for variance to increase linearly when 
+        # moving away from a known value. See a Wiener process, eg.
+        self.tf_prior = qi.ProductDistribution(*([
+                qi.NormalDistribution(mean=0, var=unit_std**2 * (max_offset / n_offsets))
+            ] * n_offsets))
+                
+        self._n_rvs = self.base_prior.n_rvs + self.tf_prior.n_rvs
+    
+    @property
+    def n_rvs(self):
+        return self._n_rvs
+        
+    def sample(self, n=1):
+        base_sample = self.base_prior.sample(n)
+        tf_sample = np.concatenate([
+                np.cumsum(self.tf_prior.sample(n), axis=1)[:,::-1],
+                np.cumsum(self.tf_prior.sample(n), axis=1)
+            ], axis=1)
+        tf_sample = np.abs(base_sample[:,m.RabiRamseyModel.IDX_OMEGA,np.newaxis] + tf_sample)
+            
+        if self.has_ref:
+            ref_sample = base_sample[:,5:]
+            base_sample = base_sample[:,:5]
+        else:
+            ref_sample = np.zeros((n, 0))
+
+        return np.concatenate([
+                base_sample,
+                tf_sample,
+                ref_sample
+            ], axis=1)
 
 class ReferencedPoissonModel(qi.DerivedModel):
     """
