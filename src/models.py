@@ -9,7 +9,7 @@ import numpy as np
 import scipy.io as sio
 from scipy.linalg import expm
 from scipy.special import xlogy, gammaln
-from scipy.interpolate import CubicSpline
+from scipy import interpolate
 from vexpm import vexpm
 from vexpm import matmul
 from fractions import gcd as fgcd
@@ -503,15 +503,19 @@ class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
     r"""
     Generalizes RabiRamseyModel slightly to include:
         1) different rabi frequencies at different offsets
-        2) different pulse lengths on the ramsey hard pulses
+        2) different pulse lengths on the two ramsey hard pulses
+    
+    Note that we keep the zeeman frequency at 0MHz offset as parameter 2 
+    for the semblance of backwards-compatibility with RabiRamseyModel, which
+    this class supercedes.
     
     Model parameters:
     0: :math:`\Omega`, Rabi strength (MHz); coefficient of Sx
-    1: :math:`\omega_e`, Zeeman frequency (MHz); coefficient of Sz
+    1: :math:`\omega_e`, Zeeman frequency (MHz) at 0MHz offset; coefficient of Sz
     2: :math:`\Delta \omega_c`, ZFS detuning (MHz); coefficient of Sz^2
     3: :math:`\A_N`, Nitrogen hyperfine splitting (MHz); modeled as incoherent average  
     4: :math:`T_2^-1`, inverse of electron T2* (MHz)
-    5: relative amplitudes of rabi frequencies
+    5...: Zeeman frequencies at offsets -max_offset...not(0)...+max_offset
 
     Experiment parameters:
     mode: Specifies whether a reference or signal count is being performed.
@@ -524,9 +528,9 @@ class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
         experiment will be run at.
     :param int n_offset: The number of points on one side of 2.87GHz 
         to use in the interpolation function that describes the amplitude
-        transfer function. There will be a total of `2*n_offset` unitless model
-        parameters used. The amplitude at 0MHz offset is 1, with frequency 
-        corresponding to the `\omega_e` parameter.
+        transfer function. There will be a total of `2*n_offset` rabi
+        frequencies stored apart from the one at 0 offset. 
+        Interpolation is linear between these stored values.
     """
     
     RABI = 0
@@ -559,16 +563,18 @@ class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
         return len(self.modelparam_names)
         
     def transfer_function(self, modelparams):
-        wr = modelparams[:,0]
+        wr = modelparams[:,0,np.newaxis]
         neg = modelparams[:,5:5+self.n_offset]
         pos = modelparams[:,5+self.n_offset:5+2*self.n_offset]
-        return CubicSpline(
+        return interpolate.interp1d(
             self.all_offsets,
-            wr[:,np.newaxis] * np.concatenate(
-                [neg, np.ones((modelparams.shape[0],1)), pos], 
+            np.concatenate(
+                [neg, wr, pos], 
                 axis=1
             ),
-            axis=1
+            axis=1,
+            assume_sorted=True,
+            kind='linear'
         )
         
     def rabi_frequency(self, offset, modelparams):
@@ -583,9 +589,9 @@ class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
             r'A_N',
             r'T_2^{-1}'
         ] + [
-            'a_{{{}MHz}}'.format(offset) for offset in self.neg_offsets
+            '\Omega_{{{}MHz}}'.format(offset) for offset in self.neg_offsets
         ] + [
-            'a_{{{}MHz}}'.format(offset) for offset in self.pos_offsets
+            '\Omega_{{{}MHz}}'.format(offset) for offset in self.pos_offsets
         ]
         
     @property
@@ -607,6 +613,9 @@ class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
 
                 # Require that T₂ is positive.
                 modelparams[:, RabiRamseyModel.IDX_T2_INV] >= 0
+            ] +
+            [
+                modelparams[:,5+idx] >= 0 for idx in range(2*self.n_offset)
             ],
             axis=0
         )
