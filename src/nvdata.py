@@ -6,6 +6,7 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 
 import numpy as np
+from numpy.lib.recfunctions import append_fields
 import models as m
 import datetime
 from pandas import DataFrame, Panel, Timestamp, Timedelta, read_pickle, concat
@@ -271,6 +272,9 @@ def reprocess_dataframe(df, updater):
         job = OfflineExperimentJob()
         job.push_result(*result.triplet)
         eps = heuristic(None)
+        if 'tp2' not in eps.dtype.fields.keys():
+            tp = eps['t']
+            eps = np.array(append_fields(eps,'tp2', tp ,dtypes='float'))
         perform_update(heuristic, eps, result, False)
         new_df = append_experiment_data(
             new_df,
