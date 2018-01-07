@@ -615,7 +615,7 @@ class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
                 modelparams[:, RabiRamseyModel.IDX_T2_INV] >= 0
             ] +
             [
-                modelparams[:,5+idx] >= 0 for idx in range(2*self.n_offset)
+                modelparams[:,idx] >= 0 for idx in range(5, modelparams.shape[1])
             ],
             axis=0
         )
@@ -719,7 +719,7 @@ class ExtendedPrior(qi.Distribution):
                 np.cumsum(self.tf_prior.sample(n), axis=1)[:,::-1],
                 np.cumsum(self.tf_prior.sample(n), axis=1)
             ], axis=1)
-        tf_sample = np.abs(base_sample[:,m.RabiRamseyModel.IDX_OMEGA,np.newaxis] + tf_sample)
+        tf_sample = np.abs(base_sample[:,RabiRamseyModel.IDX_OMEGA,np.newaxis] + tf_sample)
             
         if self.has_ref:
             ref_sample = base_sample[:,5:]
