@@ -46,6 +46,15 @@ def compute_run_time(expparam):
         
     return float(1e-6 * expparam['n_meas'] * (pulse_time + other_time))
     
+def compute_single_eff_num_bits(alpha, beta):
+    """
+    Helper function for compute_eff_num_bits. Returns effective number
+    of strong measurements for given alpha and beta. If they are
+    arrays, returns array of the same shape.
+    """
+    return (alpha - beta)**2 / (5 * (alpha + beta))
+
+
 def compute_eff_num_bits(n_meas, updater):
     """
     Computes the number of effective number of strong measurements
@@ -62,7 +71,7 @@ def compute_eff_num_bits(n_meas, updater):
     n_mps = updater.model.base_model.n_modelparams
     alpha = updater.particle_locations[:,n_mps]
     beta = updater.particle_locations[:,n_mps+1]
-    n_eff = (alpha - beta)**2 / (5 * (alpha + beta))
+    n_eff = compute_single_eff_num_bits(alpha, beta)
     return float(n_meas * np.dot(updater.particle_weights, n_eff))
 
 def get_now():
@@ -692,7 +701,7 @@ class RiskHeuristic(qi.Heuristic):
             locs = self.updater.particle_locations[:,:n_mps]
             weights = self.updater.particle_weights
         else:
-            locs = self.updater.sample(n=self.n_particles)
+            locs = self.updater.sample(n=self.n_particles)[:,:n_mps]
             weights = np.ones(self.n_particles) / self.n_particles
         self._risk_taker.particle_locations = locs
         self._risk_taker.particle_weights = weights
@@ -871,11 +880,11 @@ class TrackingHeuristic(qi.Heuristic):
         Returns the number of shots to do on the next experiment. This might
         depend on the reference counts.
         """
-        if self.n_eff_bits is not None:
+        if self.eff_num_bits is not None:
             # solve for the number of shots we need to reach eff_num_bits
             single_shot = compute_eff_num_bits(1, self.updater)
-            self._n_meas = self.n_eff_bits / single_shot
-        return min(self._n_meas, MAX_N_MEAS)
+            self._n_meas = self.eff_num_bits / single_shot
+        return min(self._n_meas, TrackingHeuristic.MAX_N_MEAS)
         
     @property
     def updater(self):
