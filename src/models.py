@@ -1036,6 +1036,14 @@ class BridgedRPMUpdater(qi.SMCUpdater):
         self.branch_size = branch_size
         self.max_recursion = max_recursion
         self._zero_weight_policy = zero_weight_policy
+        
+    def update_timestep(self, eps):
+        # usually this is done by the update method, but this way is less 
+        # confusing
+        assert eps.size == 1
+        self.particle_locations = self.model.update_timestep(
+            self.particle_locations, expparams
+        )[:, :, 0]
 
     def update(self, outcome, expparams, check_for_resample=True, data_divider=1):
         """
@@ -1110,9 +1118,11 @@ class BridgedRPMUpdater(qi.SMCUpdater):
         self._normalization_record.append(norm[0][0])
 
         self.particle_weights[:] = weights[0,0,:]
-        self.particle_locations = self.model.update_timestep(
-            self.particle_locations, expparams
-        )[:, :, 0]
+        # easiest not to deal with timesteps in this recursive formula,
+        # wo don't want to end up calling too many times
+        #self.particle_locations = self.model.update_timestep(
+        #    self.particle_locations, expparams
+        #)[:, :, 0]
 
         # Check if we need to update our min_n_ess attribute.
         if self.n_ess <= self._min_n_ess:
