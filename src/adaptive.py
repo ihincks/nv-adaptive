@@ -636,14 +636,15 @@ class TCPRabiRamseyExperimentRunner(AbstractRabiRamseyExperimentRunner):
 #-------------------------------------------------------------------------------
 
 class RiskHeuristic(qi.Heuristic):
-    def __init__(self, updater, Q, rabi_eps, ramsey_eps, name=None, dview=None):
+    def __init__(self, updater, Q, rabi_eps, ramsey_eps, name=None, dview=None, subsample_particles=None):
         self.updater = updater
         if dview is None:
             self._ham_model = m.RabiRamseyModel()
         else:
             self._ham_model = qi.DirectViewParallelizedModel(m.RabiRamseyModel(), dview, serial_threshold=1)
         self._ham_model._Q = Q
-        self._risk_taker = qi.SMCUpdater(self._ham_model, updater.n_particles, SOME_PRIOR)
+        self.n_particles = updater.n_particles if subsample_particles is None else subsample_particles
+        self._risk_taker = qi.SMCUpdater(self._ham_model, self.n_particles, SOME_PRIOR)
         self._update_risk_particles()
         self._rabi_eps = rabi_eps
         self._ramsey_eps = ramsey_eps
@@ -652,8 +653,14 @@ class RiskHeuristic(qi.Heuristic):
         
     def _update_risk_particles(self):
         n_mps = self._risk_taker.model.base_model.n_modelparams
-        self._risk_taker.particle_locations = self.updater.particle_locations[:,:n_mps]
-        self._risk_taker.particle_weights = self.updater.particle_weights
+        if self.n_particles == updater.n_particles:
+            locs = self.updater.particle_locations[:,:n_mps]
+            weights = self.updater.particle_weights
+        else:
+            locs = self.updater.sample(n=self.n_particles)
+            weights = np.ones(self.n_particles) / self.n_particles
+        self._risk_taker.particle_locations = locs
+        self._risk_taker.particle_weights = weights
         
     def __call__(self, tp):
         ramsey_eps = self._ramsey_eps
@@ -776,7 +783,8 @@ class DataFrameHeuristic(qi.Heuristic):
         self.updater = updater
         
     def __call__(self, tp):
-        # we purposely start from idx=1, since there is no expparam there
+        # we purposely start from idx=1, since there is no expparam 
+        # at idx=0
         self._idx += 1
         return self.df.expparam[self._idx]
         
