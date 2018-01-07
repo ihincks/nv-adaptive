@@ -9,6 +9,7 @@ import numpy as np
 import scipy.io as sio
 from scipy.linalg import expm
 from scipy.special import xlogy, gammaln
+import scipy.stats as st
 from scipy import interpolate
 from vexpm import vexpm
 from vexpm import matmul
