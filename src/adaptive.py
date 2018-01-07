@@ -844,21 +844,21 @@ class TrackingHeuristic(qi.Heuristic):
     sets an empirical prior on the reference coordinates of the distribution.
     
     :param qinfer.Heuristic heuristic: The heuristic to wrap.
-    :param float cutoff: How far below the initial bright reference we can 
-        drop before demanding a tracking operation.
+    :param float std_tracking: How many stds below the initial bright reference
+        we must go before demanding a tracking operation.
     :param bool track_on_initial_reference: Whether to precede the initial 
         reference taking by a tracking operation.
     :param float std_mult: How much bigger than 1 standard deviation we
-        should set the reference prior to.
+        should set the reference prior width.
     """
     
     # the hardware will have trouble doing too many shots because of 
     # certain timeout counters in the the nv-command-center code
     MAX_N_MEAS = 500000
     
-    def __init__(self, heuristic, cutoff=0.85, track_on_initial_reference=True, std_mult=3, n_meas=None, eff_num_bits=10):
+    def __init__(self, heuristic, std_tracking=5, track_on_initial_reference=True, std_mult=3, n_meas=None, eff_num_bits=10):
         self.underlying_heuristic = heuristic
-        self.cutoff = cutoff
+        self.std_tracking = std_tracking
         self.has_initial_reference = False
         self.track_on_initial_reference = track_on_initial_reference
         self.std_mult = std_mult
@@ -950,7 +950,7 @@ class TrackingHeuristic(qi.Heuristic):
     def _decide_on_tracking(self):
         n_mps = self.updater.model.base_model.n_modelparams
         bright_est = self.updater.est_mean()[n_mps]
-        return bright_est < self._initial_bright_mean - 2 * self.std_mult * self._initial_bright_std
+        return bright_est < self._initial_bright_mean - self.std_tracking * self._initial_bright_std
         
         
     def __call__(self, tp):
