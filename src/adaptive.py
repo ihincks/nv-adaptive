@@ -30,6 +30,41 @@ SOME_PRIOR = qi.UniformDistribution(np.array([
 # FUNCTIONS
 #-------------------------------------------------------------------------------
 
+def compute_run_time(expparam):
+    """
+    Computes the amount of time it takes to run all repetitions
+    of the given experiment back to back.
+    """
+    # this is the amount of time in AdaptiveTwoPulse.pp not
+    # spent on the experiment's pulse sequence, in microseconds
+    other_time = 27.65
+    
+    if expparam['emode'] == m.RabiRamseyModel.RABI:
+        pulse_time = expparam['t']
+    else:
+        pulse_time = 2 * expparam['t'] + expparam['tau']
+        
+    return float(1e-6 * expparam['n_meas'] * (pulse_time + other_time))
+    
+def compute_eff_num_bits(n_meas, updater):
+    """
+    Computes the number of effective number of strong measurements
+    given the current value of the references. Taken as the mean over the
+    distribution in updater.
+    
+    :param int n_meas: Number of repetitions of the experiment.
+    :param ReferencedPoissonModel updater: This will have a distribution over 
+         the paramters of alpha and beta describing the number of bright and
+         dark photons expected at n_meas=1.
+    """
+    # hopefully hardcoding these indices doesn't come back to 
+    # haunt me
+    n_mps = updater.model.base_model.n_modelparams
+    alpha = updater.particle_locations[:,n_mps]
+    beta = updater.particle_locations[:,n_mps+1]
+    n_eff = (alpha - beta)**2 / (5 * (alpha + beta))
+    return float(n_meas * np.dot(updater.particle_weights, n_eff))
+
 def get_now():
     return Timestamp(datetime.datetime.now())
 
@@ -653,7 +688,7 @@ class RiskHeuristic(qi.Heuristic):
         
     def _update_risk_particles(self):
         n_mps = self._risk_taker.model.base_model.n_modelparams
-        if self.n_particles == updater.n_particles:
+        if self.n_particles == self.updater.n_particles:
             locs = self.updater.particle_locations[:,:n_mps]
             weights = self.updater.particle_weights
         else:
@@ -708,10 +743,11 @@ class InfoGainHeuristic(qi.Heuristic):
         return eps
     
 class ExponentialHeuristic(qi.Heuristic):
-    def __init__(self, updater, max_t=0.3, max_tau=2, base=11/10, n=50, n_meas=100, name=None):
+    def __init__(self, updater, max_t=0.3, max_tau=2, base=11/10, n=50, name=None):
         self.updater = updater
-        self._rabi_eps = rabi_sweep(max_t=1, n=n, n_meas=n_meas)
-        self._ramsey_eps = ramsey_sweep(max_tau=1, n=n, n_meas=n_meas)
+        # n_meas should be overwritten by the TrackingHeuristic wrapper
+        self._rabi_eps = rabi_sweep(max_t=1, n=n, n_meas=1000)
+        self._ramsey_eps = ramsey_sweep(max_tau=1, n=n, n_meas=1000)
         
         self._rabi_eps['t'] = max_t * (base ** np.arange(n)) / (base ** (n-1))
         self._ramsey_eps['tau'] = max_tau * (base ** np.arange(n)) / (base ** (n-1))
@@ -732,10 +768,11 @@ class ExponentialHeuristic(qi.Heuristic):
         return eps
     
 class LinearHeuristic(qi.Heuristic):
-    def __init__(self, updater, max_t=0.3, max_tau=2, n=50, n_meas=100, name=None):
+    def __init__(self, updater, max_t=0.3, max_tau=2, n=50, name=None):
         self.updater = updater
-        self._rabi_eps = rabi_sweep(max_t=max_t, n=n, n_meas=n_meas)
-        self._ramsey_eps = ramsey_sweep(max_tau=max_tau, n=n, n_meas=n_meas)
+        # n_meas should be overwritten by the TrackingHeuristic wrapper
+        self._rabi_eps = rabi_sweep(max_t=1, n=n, n_meas=1000)
+        self._ramsey_eps = ramsey_sweep(max_tau=1, n=n, n_meas=1000)
         
         self._rabi_eps['t'] = np.round(self._rabi_eps['t'] / 0.002) * 0.002
         self._ramsey_eps['tau'] = np.round(self._ramsey_eps['tau'] / 0.002) * 0.002
@@ -753,7 +790,7 @@ class LinearHeuristic(qi.Heuristic):
         return eps
         
 class PredeterminedSingleAdaptHeuristic(qi.Heuristic):
-    def __init__(self, updater, rabi_eps, ramsey_eps, n_meas=100, name=None):
+    def __init__(self, updater, rabi_eps, ramsey_eps, name=None):
         self.updater = updater
         self._rabi_eps = rabi_eps
         self._ramsey_eps = rabi_eps
@@ -805,7 +842,12 @@ class TrackingHeuristic(qi.Heuristic):
     :param float std_mult: How much bigger than 1 standard deviation we
         should set the reference prior to.
     """
-    def __init__(self, heuristic, cutoff=0.85, track_on_initial_reference=True, std_mult=3):
+    
+    # the hardware will have trouble doing too many shots because of 
+    # certain timeout counters in the the nv-command-center code
+    MAX_N_MEAS = 500000
+    
+    def __init__(self, heuristic, cutoff=0.85, track_on_initial_reference=True, std_mult=3, n_meas=None, eff_num_bits=10):
         self.underlying_heuristic = heuristic
         self.cutoff = cutoff
         self.has_initial_reference = False
@@ -816,6 +858,24 @@ class TrackingHeuristic(qi.Heuristic):
         self._initial_dark_mean = None
         self._initial_bright_std = None
         self._initial_dark_std = None
+        
+        self._n_meas = n_meas
+        if n_meas is None and eff_num_bits is None:
+            warnings.warn('Neither n_meas nor eff_num_bits was specified; defaulting to 200000.')
+            self._n_meas = 200000
+        self.eff_num_bits = eff_num_bits
+    
+    @property
+    def n_meas(self):
+        """
+        Returns the number of shots to do on the next experiment. This might
+        depend on the reference counts.
+        """
+        if self.n_eff_bits is not None:
+            # solve for the number of shots we need to reach eff_num_bits
+            single_shot = compute_eff_num_bits(1, self.updater)
+            self._n_meas = self.n_eff_bits / single_shot
+        return min(self._n_meas, MAX_N_MEAS)
         
     @property
     def updater(self):
@@ -888,5 +948,6 @@ class TrackingHeuristic(qi.Heuristic):
         if not self.has_initial_reference:
             raise RuntimeError('take_initial_reference must be called before an experiment can be suggested.')
         eps = self.underlying_heuristic(tp)
+        eps['n_meas'] = self.n_meas
         precede_by_tracking = self._decide_on_tracking()
         return eps, precede_by_tracking

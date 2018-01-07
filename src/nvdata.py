@@ -12,7 +12,7 @@ import datetime
 from pandas import DataFrame, Panel, Timestamp, Timedelta, read_pickle, concat
 import wquantiles
 from scipy.interpolate import interp1d
-from adaptive import rabi_sweep, ramsey_sweep, DataFrameHeuristic, perform_update, ExperimentResult, OfflineExperimentJob
+from adaptive import *
 
 #-------------------------------------------------------------------------------
 # CONSTANTS
@@ -34,35 +34,6 @@ def asscalar(a):
         return np.asscalar(a)
     except AttributeError:
         return a
-        
-def compute_run_time(expparam):
-    """
-    Computes the amount of time it takes to run all repetitions
-    of the given experiment back to back.
-    """
-    # this is the amount of time in AdaptiveTwoPulse.pp not
-    # spent on the experiment's pulse sequence, in microseconds
-    other_time = 27.65
-    
-    if expparam['emode'] == m.RabiRamseyModel.RABI:
-        pulse_time = expparam['t']
-    else:
-        pulse_time = 2 * expparam['t'] + expparam['tau']
-        
-    return float(1e-6 * expparam['n_meas'] * (pulse_time + other_time))
-    
-def compute_eff_num_bits(n_meas, updater):
-    """
-    Computes the number of effective number of strong measurements
-    given the current value of the references.
-    """
-    # hopefully hardcoding these indices doesn't come back to 
-    # haunt me
-    n_mps = updater.model.base_model.n_modelparams
-    alpha = updater.particle_locations[:,n_mps]
-    beta = updater.particle_locations[:,n_mps+1]
-    n_eff = (alpha - beta)**2 / (5 * (alpha + beta))
-    return float(n_meas * np.dot(updater.particle_weights, n_eff))
 
 
 def add_counts_by_unique_expparams(df):
