@@ -671,6 +671,10 @@ class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
 
         return qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0.T)
 
+################################################################################
+# DISTRIBUTIONS AND UPDATERS
+################################################################################
+
 class InverseUniform(qi.Distribution):
     def __init__(self, bounds):
         super(InverseUniform, self).__init__()
@@ -681,6 +685,80 @@ class InverseUniform(qi.Distribution):
     def sample(self, n):
         samples = self._dist.sample(n)
         return 1 / samples
+        
+class InverseWishartDistribution(qi.Distribution):
+    """
+    Inverse Wishart distribution over positive matrices.
+    
+    :param float nu: Number of prior observations of a normal distibution.
+    :param np.ndarray sigma: Square positive matrix.
+    :param bool sigma_is_mean: If `False`, `sigma` is a positive matrix with
+        the usual definition as found on wikipedia. If `True`, `sigma`
+        is scaled so that it is equal to the mean value of this distribution.        
+    """
+    def __init__(self, nu, sigma, sigma_is_mean=True):
+        self.dim = sigma.shape[0]
+        _sigma = (nu - self.dim - 1) * sigma if sigma_is_mean else sigma
+        self._dist = st.invwishart(df=nu, scale=_sigma)
+        
+    @property
+    def n_rvs(self):
+        return self.dim
+    
+    def sample(self, n=1):
+        samples = self._dist.rvs(size=n)
+        if samples.ndim == 2:
+            samples = samples[np.newaxis, :, :]
+        return samples
+    
+class InverseWishartForCholeskyDistribution(InverseWishartDistribution):
+    """
+    Applies a parameter change to the samples of `InverseWishartDistribution`.
+    Namely, samples from this distribution are the flattened lower
+    cholesky decomposition of `InverseWishartDistribution`. Flattening order
+    is determined by `np.tril_indices`.
+    
+    :param float nu: Number of prior observations of a normal distibution.
+    :param np.ndarray sigma: Square positive matrix.
+    :param bool sigma_is_mean: If `False`, `sigma` is a positive matrix with
+        the usual definition as found on wikipedia. If `True`, `sigma`
+        is scaled so that it is equal to the mean value of this distribution.
+    """
+    @property
+    def n_rvs(self):
+        return int(self.dim * (self.dim + 1) / 2)
+    def sample(self, n=1):
+        samples = super(InverseWishartForCholeskyDistribution, self).sample(n)
+        samples = np.linalg.cholesky(samples)
+        idx = (np.s_[:],) + np.tril_indices(self.dim)
+        return samples[idx]
+    
+class DriftDistribution(qi.Distribution):
+    """
+    A convenience wrappen for `InverseWishartForCholeskyDistribution` describing
+    the diffusion rate of the drift parameters.
+    
+    :param float alpha_mean_drift: The mean dispersion of the alpha parameter
+        per second of time.
+    :param beta_mean_drift: The mean dispersion of the beta parameter per 
+        second of time.
+    :param float r: The mean correlation between the two dispersions.
+    :param float nu: The inverse wishart distribution degrees of freedom.
+        Larger values make a tighter prior. Must be greater than 2.
+    """
+    def __init__(self, alpha_mean_drift, beta_mean_drift=None, r=0.7, nu=30):
+        if beta_mean_drift is None:
+            beta_mean_drift = alpha_mean_drift
+        a, b = alpha_mean_drift, beta_mean_drift
+        sigma = np.array([[a**2, r*a*b], [r*a*b, b**2]])
+        self._iw = InverseWishartForCholeskyDistribution(nu, sigma, sigma_is_mean=True)
+        
+    @property
+    def n_rvs(self):
+        return 3
+    
+    def sample(self, n=1):
+        return self._iw.sample(n)
 
 class ExtendedPrior(qi.Distribution):
     """
