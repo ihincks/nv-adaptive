@@ -960,3 +960,45 @@ class TrackingHeuristic(qi.Heuristic):
         eps['n_meas'] = self.n_meas
         precede_by_tracking = self._decide_on_tracking()
         return eps, precede_by_tracking
+
+
+class QPriorRiskHeuristic(qi.Heuristic):
+    def __init__(self, updater, Q, rabi_eps, ramsey_eps, name=None, dview=None, subsample_particles=None):
+        self.updater = updater
+        self.prior_covariance = updater.est_covariance_mtx()
+        if dview is None:
+            self._ham_model = m.RabiRamseyModel()
+        else:
+            self._ham_model = qi.DirectViewParallelizedModel(m.RabiRamseyModel(), dview, serial_threshold=1)
+        self._ham_model._Q = Q/np.diag(self.prior_covariance)
+        self.n_particles = updater.n_particles if subsample_particles is None else subsample_particles
+        self._risk_taker = qi.SMCUpdater(self._ham_model, self.n_particles, SOME_PRIOR)
+        self._update_risk_particles()
+        self._rabi_eps = rabi_eps
+        self._ramsey_eps = ramsey_eps
+        self.name = "Bayes Risk, Q={}".format(Q) if name is None else name
+        self.risk_history = []
+        
+    def _update_risk_particles(self):
+        n_mps = self._risk_taker.model.base_model.n_modelparams
+        if self.n_particles == self.updater.n_particles:
+            locs = self.updater.particle_locations[:,:n_mps]
+            weights = self.updater.particle_weights
+        else:
+            locs = self.updater.sample(n=self.n_particles)[:,:n_mps]
+            weights = np.ones(self.n_particles) / self.n_particles
+        self._risk_taker.particle_locations = locs
+        self._risk_taker.particle_weights = weights
+        
+    def __call__(self, tp):
+        ramsey_eps = self._ramsey_eps
+        ramsey_eps['t'] = tp
+        all_eps = np.concatenate([self._rabi_eps, ramsey_eps])
+        
+        self._update_risk_particles()
+        
+        risk = self._risk_taker.bayes_risk(all_eps)
+        self.risk_history += [risk]
+        best_idx = np.argmin(risk, axis=0)
+        eps = np.array([all_eps[best_idx]])
+        return eps
