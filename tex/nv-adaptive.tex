@@ -383,11 +383,11 @@ of $(X,Y)|\alpha,\beta$, namely,
 
 The inverse Fisher information of the binomial model $\binomialdist(n,p)$
 is given by $\frac{p(1-p)}{n}$, which when integrated uniformly over 
-$[0,1]$ produces $\frac{1}{6n}$.
+$[0,1]$, produces $\frac{1}{6n}$.
 Our definition for the number of effective strong measurements (ESM)
 of a referenced Poisson model with parameters 
 $(\alpha,\beta,\sigma_\alpha,\sigma_\beta)$ is defined by 
-equating $\int_p K\dd p=\frac{1}{6n}$ and solving for $n$,
+equating $\int_0^1 K\dd p=\frac{1}{6n}$ and solving for $n$,
 which results in
 \begin{align}
     n_\ESM = \frac{
@@ -415,6 +415,7 @@ for the referenced Poisson model and a binomial model with $n=n_\ESM$.
     as a function of $p$
     for both the referenced Poisson model (blue, solid) and for a binomial model
     (orange, dashed) where $n=n_\ESM$.
+    The prior distribution on $p$ is uniform.
     This is done in nine regimes, corresponding to the nine subplots of the figure.
     Each row uses a different magnitude of bright reference, $\alpha$,
     and each column uses a different amount of prior reference knowledge.
