@@ -967,11 +967,11 @@ class QPriorRiskHeuristic(RiskHeuristic):
     def __init__(self, updater, Q, rabi_eps, ramsey_eps, name=None, dview=None, subsample_particles=None):
         
 
-        super(self,QPriorRiskHeuristic).__init__(updater, Q, rabi_eps, ramsey_eps, name=name, dview=dview, 
+        super(QPriorRiskHeuristic, self).__init__(updater, Q, rabi_eps, ramsey_eps, name=name, dview=dview, 
                                                 subsample_particles=subsample_particles)
         
         self._prior_covariance = updater.est_covariance_mtx()
-        self._ham_model._Q = Q/np.diag(self.prior_covariance)
+        self._ham_model._Q = Q / np.diag(self.prior_covariance)[:self._ham_model.n_modelparams]
         self.name = "QPrior Bayes Risk, Q={}".format(Q) if name is None else name
         
 
