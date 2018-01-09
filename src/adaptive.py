@@ -30,6 +30,12 @@ SOME_PRIOR = qi.UniformDistribution(np.array([
 # FUNCTIONS
 #-------------------------------------------------------------------------------
 
+def asscalar(a):
+    try:
+        return np.asscalar(a)
+    except AttributeError:
+        return a
+
 def compute_run_time(expparam):
     """
     Computes the amount of time it takes to run all repetitions
@@ -46,13 +52,17 @@ def compute_run_time(expparam):
         
     return float(1e-6 * expparam['n_meas'] * (pulse_time + other_time))
     
-def compute_single_eff_num_bits(alpha, beta):
+def compute_single_eff_num_bits(alpha, beta, var_alpha=None, var_beta=None):
     """
     Helper function for compute_eff_num_bits. Returns effective number
     of strong measurements for given alpha and beta. If they are
     arrays, returns array of the same shape.
     """
-    return (alpha - beta)**2 / (5 * (alpha + beta))
+    if var_alpha is None:
+        var_alpha = alpha
+    if var_beta is None:
+        var_beta = beta
+    return (alpha - beta)**2 / (3 * (alpha + beta) + 2 * (var_alpha + var_beta))
 
 
 def compute_eff_num_bits(n_meas, updater):
@@ -68,11 +78,12 @@ def compute_eff_num_bits(n_meas, updater):
     """
     # hopefully hardcoding these indices doesn't come back to 
     # haunt me
-    n_mps = updater.model.base_model.n_modelparams
-    alpha = updater.particle_locations[:,n_mps]
-    beta = updater.particle_locations[:,n_mps+1]
-    n_eff = compute_single_eff_num_bits(alpha, beta)
-    return float(n_meas * np.dot(updater.particle_weights, n_eff))
+    mu_alpha, mu_beta = updater.est_mean()[5:7]
+    var_alpha, var_beta = np.diag(updater.est_covariance_mtx())[5:7]
+    return asscalar(compute_single_eff_num_bits(
+        mu_alpha, mu_beta, 
+        var_alpha=var_alpha, var_beta=var_beta
+    ))
 
 def get_now():
     return Timestamp(datetime.datetime.now())

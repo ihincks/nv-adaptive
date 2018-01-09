@@ -28,12 +28,6 @@ def get_now():
 
 def est_std(p, alpha, beta):
     return np.sqrt(p*(p+1)*alpha + (p-1)*(p-2)*beta)/(alpha-beta)
-    
-def asscalar(a):
-    try:
-        return np.asscalar(a)
-    except AttributeError:
-        return a
 
 
 def add_counts_by_unique_expparams(df):
