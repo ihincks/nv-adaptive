@@ -1042,7 +1042,7 @@ class BridgedRPMUpdater(qi.SMCUpdater):
         # confusing
         assert eps.size == 1
         self.particle_locations = self.model.update_timestep(
-            self.particle_locations, expparams
+            self.particle_locations, eps
         )[:, :, 0]
 
     def update(self, outcome, expparams, check_for_resample=True, data_divider=1):

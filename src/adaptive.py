@@ -90,6 +90,7 @@ def perform_update(heuristic, expparam, result, preceded_by_tracking, drift_trac
     if drift_tracking:
         if preceded_by_tracking:
             heuristic.reset_reference_prior()
+        updater.update_timestep(expparam)
         expparam['mode'] = m.ReferencedPoissonModel.BRIGHT
         bright = updater.update(result.bright, expparam)
         expparam['mode'] = m.ReferencedPoissonModel.DARK
