@@ -961,3 +961,20 @@ class TrackingHeuristic(qi.Heuristic):
         eps['n_meas'] = self.n_meas
         precede_by_tracking = self._decide_on_tracking()
         return eps, precede_by_tracking
+
+
+class QPriorRiskHeuristic(RiskHeuristic):
+    def __init__(self, updater, Q, rabi_eps, ramsey_eps, name=None, dview=None, subsample_particles=None):
+        
+
+        super(self,QPriorRiskHeuristic).__init__(updater, Q, rabi_eps, ramsey_eps, name=name, dview=dview, 
+                                                subsample_particles=subsample_particles)
+        
+        self._prior_covariance = updater.est_covariance_mtx()
+        self._ham_model._Q = Q/np.diag(self.prior_covariance)
+        self.name = "QPrior Bayes Risk, Q={}".format(Q) if name is None else name
+        
+
+    @property
+    def prior_covariance(self):
+        return self._prior_covariance
