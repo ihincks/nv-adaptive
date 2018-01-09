@@ -1,6 +1,6 @@
-\documentclass[aps,prl,twocolumn,superscriptaddress]{revtex4}
+\documentclass[aps,nofootinbib,prl,twocolumn,superscriptaddress]{revtex4}
 
-\usepackage[strict]{revquantum}   
+\usepackage[strict]{revquantum}
 
 
 %% PATHS %%
@@ -16,6 +16,7 @@
 \newcommand{\data}{d}
 
 \newcommand{\MLE}{\text{MLE}}
+\newcommand{\ESM}{\text{ESM}}
 
 
 % http://tex.stackexchange.com/a/112947/615
@@ -47,6 +48,7 @@
 \affilUWChem
 \affilIQC
 \affilPI
+\affilCIFAR
 
 % new authors add your names
 
@@ -80,7 +82,7 @@ We begin by defining some notation while reviewing parameter
 estimation as applied to quantum devices.
 
 Information about a quantum device can be encoded into a list of 
-values, which we call model parameters, labeled $\mps$.
+real values, which we call \textit{model parameters}, labeled $\mps$.
 For example, in the case of Hamiltonian learning, 
 these values parameterize the Hamiltonian operator of the 
 quantum system, or in the case of 
@@ -102,7 +104,7 @@ For example, in this nomenclature, a standard Rabi curve
 would be constructed by making a set of 
 experiments, each one defining---among other fixed parameters---a 
 pulsing time in its experimental configuration, 
-$\mps=(\ldots,t_\text{pulse},\ldots)$.
+$\eps=(\ldots,t_\text{pulse},\ldots)$.
 
 An experiment returns a datum $\data$. 
 This might be a photon count
@@ -116,7 +118,7 @@ configurations $\eps_1,\ldots,\eps_n$.
 This requires us to additionally specify a model for the 
 system---something which connects the model parameters to the experiment 
 configurations and data.
-This is done by a likelihood function,
+This is done through a likelihood function,
 \begin{equation}
     \Lhood(\mps;(\data_1,\eps_n),\ldots,(\data_n,\eps_n))
         = \Pr(\data_1,...,\data_n|\mps,\eps_1,...,\eps_n),
@@ -224,7 +226,6 @@ Nulla commodo felis a est tincidunt porttitor. Praesent venenatis tellus eget ip
     
 }
 
-\nocite{apsrev41Control}
 \bibliographystyle{apsrev4-1}
 \bibliography{nv-adaptive}
 
@@ -240,15 +241,17 @@ Nulla commodo felis a est tincidunt porttitor. Praesent venenatis tellus eget ip
 \label{apx:effective-strong-measurements}
 %=============================================================================
 
-Given a pre-measurement state $\rho$, information is accessed through the
+Given a quantum state $\rho$, 
+information is accessed through the
 Born's probability $p=\Tr(\ketbra{0}\rho)$.
-In the hypothetical case of strong measurement, we would be able to draw from 
+In the hypothetical case of strong measurement, in the language
+of statistics, we would be able to draw from 
 the Bernoulli distribution $\bernoullidist(p)$, or more generally, with 
-$N$ repeated preparations and strong measurements, from 
-the binomial distribution $\binomialdist(N,p)$.
+$n$ repeated preparations and strong measurements, from 
+the binomial distribution $\binomialdist(n,p)$.
 
-Room temperature NV measurement does not allow strong measurements. 
-Instead, our access to the quantity $p$ is obstructed by three Poisson rates,
+Standard room temperature NV setups do not allow strong measurements. 
+Instead, access to the quantity $p$ is obstructed by three Poisson rates,
 such that conditional on some values $0<\beta<\alpha$, we can 
 draw from the random variables
 \begin{align}
@@ -256,44 +259,175 @@ draw from the random variables
     Y|\beta &\sim \poissondist(\beta) \nonumber \\
     Z|\alpha,\beta,p &\sim \poissondist(p\alpha + (1-p)\beta).
 \end{align}
-The information content about $p$ of such a measurement is not as obvious, 
-and depends both on the magnitude of $\alpha$, as well as the contrast between 
-$\alpha$ and $\beta$.
+The quantities $\alpha$ and $\beta$ are known as the bright reference
+and the dark reference, respectively.
+They are defined as the 
+expected number of photons collected (and summed over $N$
+repetitions of the experiment) using the initial NV states
+$\ketbra{0}$ and $\ketbra{1}$, respectively\footnote{They are
+more accurately defined in terms of the pseudo-pure states 
+that are actually created in the NV initialization procedure~\cite{hincks_statistical_2017}.}.
 
-In this appendix, we introduce a measure we call the \textit{number of effective strong measurements} 
-given some values of $\alpha$ and $\beta$.
-This will allow us to make apples-to-apples comparisons between the obstructed
-Poisson coin measurement and the binomial strong measurement which was mentioned initially.
-It is important to stress that such comparisons are valid in the context of 
-information gain and statistical inference alone; physically, nothing 
-has changed, and the measurements are not strong.
+The information content about $p$ of this referenced Poisson model is not
+immediately obvious, 
+and depends both on the magnitude of $\alpha+\beta$, 
+as well as the contrast between $\alpha$ and $\beta$.
+This is different than the strong measurement case mentioned above,
+where $n$ strong measurements has a clear intuitive and operational 
+interpretation.
+The goal of this section is to reduce information about the references
+$\alpha$ and $\beta$ into a single number 
+with the same interpretation as $n$.
+This will allow one, for example,
+to quantitatively compare two experimental setups or NVs and
+decide which one is better at providing information about $p$. 
 
-Our strategy is conceptually simple. Given some estimate of $p$ 
-made using variates of $X,Y,Z$, we calculate the number $N$ of strong measurements 
-that would hypothetically result in the same uncertainty about $p$.
-The word `uncertainty' is not precisely defined, and different interpretations 
-will lead to different values of $N$.
-At first, we consider the simplest case where the uncertainty is given by the variance 
-of the respective maximum likelihood estimators, averaged uniformly over $p\in[0,1]$.
-For the binomial case, this is easily computed as $\Var[\hat{p}]=p(1-p)/N$, equaling $1/6N$ when 
-averaged over $p$.
-For the referenced Poisson case, the Cramer-Rao bound provides a tight estimate 
-in most regimes of $\alpha$ and $\beta$, with a formula given by~\citep{hincks_statistical_2017}.
-\begin{equation}
-    \Var[\hat{p}]\approx\frac{p(p-1)\alpha+(p-1)(p-2)\beta}{(\alpha-\beta)^2}
-\end{equation}
-which has an average value of $\frac{5(\alpha+\beta)}{6(\alpha-\beta)^2}$.
-Equating these two variance formulas and solving for $N$ gives 
-\begin{equation}
-    N=\frac{(\alpha-\beta)^2}{5(\alpha+\beta)}
-\end{equation}
-which we define as the \textit{MLE number of effective strong measurements}.
+It has been shown\cite{hincks_statistical_2017} that the 
+Fisher information matrix of this 
+referenced Poisson model is given by
+\begin{align}
+    J(p,\alpha,\beta) &=
+        \begin{pmatrix}
+            \frac{(\alpha -\beta )^2}{p (\alpha -\beta )+\beta } & 
+            \frac{p (\alpha -\beta )}{p (\alpha -\beta )+\beta } & 
+            \frac{\alpha }{\beta +\alpha  p-\beta  p}-1 \\
+            \frac{p (\alpha -\beta )}{p (\alpha -\beta )+\beta } & 
+            \frac{p^2}{p \alpha -p \beta +\beta }+\frac{1}{\alpha } & 
+            -\frac{(p-1) p}{p (\alpha -\beta )+\beta } \\
+            \frac{\alpha }{p \alpha -p \beta +\beta }-1 & 
+            -\frac{(p-1) p}{p (\alpha -\beta )+\beta } & 
+            \frac{p \alpha +(p-2) (p-1) \beta }{\beta  (p (\alpha -\beta )+\beta )} \\
+        \end{pmatrix}
+\end{align}
+with inverse matrix
+\begin{align}
+    J(p,\alpha,\beta)^{-1}
+        &=
+        \begin{pmatrix}
+            \frac{p (p+1) \alpha +(p-2) (p-1) \beta }{(\alpha -\beta )^2} & 
+            \frac{p \alpha }{\beta -\alpha } & 
+            \frac{(p-1) \beta }{\alpha -\beta } \\
+            \frac{p \alpha }{\beta -\alpha } & 
+            \alpha  & 
+            0 \\
+            \frac{(p-1) \beta }{\alpha -\beta } & 
+            0 & 
+            \beta
+        \end{pmatrix}.
+\end{align}
 
-TODO: generalize this to a Bayesian setting when we can incorporate prior
-knowledge of $\alpha$ and $\beta$.
-Then we should see an approximation to the above formula for $N$ in the case
-of weak prior knowledge of $\alpha$ and $\beta$, and we should see an increase 
-in $N$ if we have more precise prior knowledge.
-The amount of increase is what I'm most interested in.
+Using the Cramer-Rao bound, these matrices let us
+estimate the information content of $p$ in the referenced
+Poisson model.
+Specifically, they give us an estimate in each of the following 
+extreme cases.
+First, the $(p,p)$ element of $J^{-1}$, 
+$(J^{-1})_{p,p}=\frac{p (p+1) \alpha +(p-2) (p-1) \beta }{(\alpha -\beta )^2}$,
+is a lower bound on the variance of any (unbiased) estimate of $p$ given that
+a single measurement of the triple $(X,Y,Z)$ has been made, 
+with no prior information
+about $p$, $\alpha$, or $\beta$ given.
+Second, the inverse of the $(p,p)$ element of $J$,
+$(J_{p,p})^{-1}=\frac{p (\alpha -\beta )+\beta}{(\alpha -\beta )^2 }$,
+ is a lower bound on 
+the variance of any (unbiased) estimate of $p$ given that a single 
+measurement of $Z$ has been made, assuming perfect knowledge of
+both $\alpha$ and $\beta$.
+
+It will be useful for us to also be able to interpolate between these two
+extremes, where some, but not all, prior information 
+about $\alpha$ and $\beta$ is available.
+There are a few tacks that one might consider to achieve this, including
+the Bayesian Cramer-Rao bound, or looking directly at the risk of some 
+estimator.
+Instead, we choose a slightly ad-hoc method as it actually produces 
+a tractable calculation---statistics of the referenced Poisson model
+usually involve a triple infinite sum, and many calculations are simply
+not possible without numerics.
+To this end, let $\sigma_\alpha^2$ and $\sigma_\beta^2$ represent 
+our prior variances of $\alpha$ and $\beta$, respectively, before
+taking a measurement of $Z|\alpha,\beta,p$.
+We can now ask the question: how many times, $M$, we must measure 
+$X|\alpha$ and $Y|\beta$ to produce these variances in the first 
+place?
+We must allow $M$ to depend on $\alpha$ or $\beta$ in each case.
+The distribution $\poissondist(M(\lambda)\lambda)$ has 
+Fisher information given by 
+$\frac{(M(\lambda)+\lambda M'(\lambda))^2}{\lambda M(\lambda}$.
+Equating this to $1/\sigma^2$ and soliving the differential
+equation at $M(0)=0$ gives $M=\lambda/4\sigma^2$.
+Therefore consider the distribution
+\begin{align}
+    \poissondist\left(\frac{\alpha^2}{4\sigma_\alpha^2}\right)
+        \times \poissondist\left(\frac{\beta^2}{4\sigma_\beta^2}\right)
+        \times \poissondist\left(p\alpha+(1-p)\beta\right)
+\end{align}
+which effectively results in our desired information about $\alpha$
+and $\beta$.
+Solving for the $(p,p)$ element of the inverse Fisher information
+matrix of this distribution results in the formula
+\begin{align}
+    K=\frac{
+        \beta +p\left(\alpha-\beta+p \sigma_\alpha ^2
+        +(p-2) \sigma_\beta ^2\right)+\sigma_\beta ^2}{(\alpha -\beta )^2}.
+\end{align}
+This formula correctly interpolates between the case of perfect prior 
+information, and prior information as collected by a single sample
+of $(X,Y)|\alpha,\beta$, namely,
+\begin{align}
+    \lim_{\sigma_\alpha^2,\sigma_\beta^2\rightarrow 0} K 
+        &= (J_{p,p})^{-1} \quad\quad\text{and}\quad\quad
+    \lim_{\sigma_\alpha^2\rightarrow \alpha, \sigma_\beta^2\rightarrow \beta} K 
+        = (J^{-1})_{p,p}.
+\end{align}
+
+The inverse Fisher information of the binomial model $\binomialdist(n,p)$
+is given by $\frac{p(1-p)}{n}$, which when integrated uniformly over 
+$[0,1]$ produces $\frac{1}{6n}$.
+Our definition for the number of effective strong measurements (ESM)
+of a referenced Poisson model with parameters 
+$(\alpha,\beta,\sigma_\alpha,\sigma_\beta)$ is defined by 
+equating $\int_p K\dd p=\frac{1}{6n}$ and solving for $n$,
+which results in
+\begin{align}
+    n_\ESM = \frac{
+            (\alpha-\beta)^2
+        }{
+            3\alpha+3\beta+2\left(\sigma_\alpha^2+\sigma_\beta^2\right)
+        }.
+\end{align}
+This shows, for example, 
+that having perfect information about $\alpha$ and $\beta$
+before measuring $Z|\alpha,\beta,p$ is roughly equivalent---in terms
+of information learned about p---to 
+$5/3\approx 1.67$ times more effective strong measurements 
+than the case where the triple $(X,Y,Z)|\alpha,\beta,p$ is
+measured, but with no prior information.
+
+Finally, in \autoref{fig:effective-strong-meas}, we use some numerics
+to show that the $\ESM$
+quantity accurately relates the mean-squared error of the Bayes estimator
+for the referenced Poisson model and a binomial model with $n=n_\ESM$.
+
+\begin{figure}
+    \includegraphics[width=\textwidth]{\figurefolder/effective-strong-meas}
+    \caption{The mean-squared-error of the Bayes estimator is computed
+    as a function of $p$
+    for both the referenced Poisson model (blue, solid) and for a binomial model
+    (orange, dashed) where $n=n_\ESM$.
+    This is done in nine regimes, corresponding to the nine subplots of the figure.
+    Each row uses a different magnitude of bright reference, $\alpha$,
+    and each column uses a different amount of prior reference knowledge.
+    The left column uses sub-Poisson error bars on $\alpha$ and $\beta$,
+    and the right column uses regular Poisson error bars.}
+    \label{fig:effective-strong-meas}
+\end{figure}
+
+%=============================================================================
+\section{BCRB for Hamiltonian Learning}
+\label{apx:bcrb}
+%=============================================================================
+
+
 
 \end{document}
