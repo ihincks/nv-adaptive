@@ -528,7 +528,10 @@ class DataFrameLiveView(object):
             data = np.array(df[label][1:]).astype(float) / np.array(df['n_meas'][1:]).astype(float)
             DataFrameLiveView.update_line(axis.lines[idx+2], x_vals, data)
 
-	axis.set_ylim([0.9 * np.amin(dark_lower), 1.1 * np.amax(bright_upper)])
+        n_meas = df['expparam'][df.shape[0]-1]['n_meas']
+        esm = n_meas * compute_single_eff_num_bits(bright_means[-1], dark_means[-1])
+        axis.set_ylim([0.9 * np.amin(dark_lower), 1.1 * np.amax(bright_upper)])
+        axis.set_title('Repetitions:{0}, ESM:{1:.1f}'.format(asscalar(n_meas), asscalar(esm)))
             
     def update_rabi(self, axis):
         idx_param = self.ham_model.IDX_OMEGA
@@ -613,6 +616,7 @@ class DataFrameLiveView(object):
         plt.fill_between([],[],[],alpha=0.3)      # dark 90%
             
         plt.ylabel('References\nPhotons per Shot') 
+        plt.title('Repetitions:{}, ESM:{}'.format(0,0))
 
         #----------------------------------------------------------------
         # draw rabi learning
