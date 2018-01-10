@@ -943,48 +943,31 @@ class ReferencedPoissonModel(qi.DerivedModel):
         # By calling the superclass implementation, we can consolidate
         # call counting there.
         super(ReferencedPoissonModel, self).likelihood(outcomes, modelparams, expparams)
+        
+        # allow expparams to mix different types
+        mask_signal = expparams['mode'] == self.SIGNAL
+        mask_bright = expparams['mode'] == self.BRIGHT
+        mask_dark = expparams['mode'] == self.DARK
+        assert np.sum(mask_signal) + np.sum(mask_bright) + np.sum(mask_dark) == expparams.size
+        
+        # compute prob that state is |0> for all modelparams and eps
+        pr0 = np.empty((modelparams.shape[0], expparams.shape[0]))
+        pr0[:, mask_signal] = self.underlying_model.likelihood(
+            np.array([0], dtype='uint'),
+            modelparams[:,:-2],
+            expparams[mask_bright]['p'] if self._expparams_scalar else expparams[mask_bright]
+        )[0,:,:]
+        pr0[:,mask_bright] = 1
+        pr0[:,mask_dark] = 0
+        
+        # now work out poisson rates for all combos of mps and eps
+        n_meas = expparams['n_meas'][np.newaxis, :]
+        alpha = n_meas * modelparams[:, -2, np.newaxis]
+        beta = n_meas * modelparams[:, -1, np.newaxis]
+        gamma = pr0 * alpha + (1 - pr0) * beta
 
-        L = np.empty((outcomes.shape[0], modelparams.shape[0], expparams.shape[0]))
-        ot = np.tile(outcomes, (modelparams.shape[0],1)).T
-
-        for idx_ep, expparam in enumerate(expparams):
-
-            if expparam['mode'] == self.SIGNAL:
-
-                # Get the probability of outcome 1 for the underlying model.
-                pr0 = self.underlying_model.likelihood(
-                    np.array([0], dtype='uint'),
-                    modelparams[:,:-2],
-                    np.array([expparam['p']]) if self._expparams_scalar else np.array([expparam]))[0,:,0]
-                pr0 = np.tile(pr0, (outcomes.shape[0], 1))
-
-                # Reference Rate
-                alpha = expparam['n_meas'] * np.tile(modelparams[:, -2], (outcomes.shape[0], 1))
-                beta = expparam['n_meas'] * np.tile(modelparams[:, -1], (outcomes.shape[0], 1))
-
-                # For each model parameter, turn this into an expected poisson rate
-                gamma = pr0 * alpha + (1 - pr0) * beta
-
-                # The likelihood of getting each of the outcomes for each of the modelparams
-                L[:,:,idx_ep] = poisson_pdf(ot, gamma)
-
-            elif expparam['mode'] == self.BRIGHT:
-
-                # Reference Rate
-                alpha = expparam['n_meas'] * np.tile(modelparams[:, -2], (outcomes.shape[0], 1))
-
-                # The likelihood of getting each of the outcomes for each of the modelparams
-                L[:,:,idx_ep] = poisson_pdf(ot, alpha)
-
-            elif expparam['mode'] == self.DARK:
-
-                # Reference Rate
-                beta = expparam['n_meas'] * np.tile(modelparams[:, -1], (outcomes.shape[0], 1))
-
-                # The likelihood of getting each of the outcomes for each of the modelparams
-                L[:,:,idx_ep] = poisson_pdf(ot, beta)
-            else:
-                raise(ValueError('Unknown mode detected in ReferencedPoissonModel.'))
+        # work out likelihood of these rates for each outcome and return
+        L = poisson_pdf(outcomes[:,np.newaxis,np.newaxis], gamma[np.newaxis,:,:])
 
         assert not np.any(np.isnan(L))
         return L
