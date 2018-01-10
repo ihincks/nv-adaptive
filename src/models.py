@@ -74,11 +74,23 @@ vecPhaseNone = RepeatedOperator(np.array([1,0,1,0,1,0,1,0,1]))
 
 ## FUNCTIONS ###################################################################
 
-def poisson_pdf(k, mu):
+def poisson_pdf(k, mu, out=None):
     """
     Probability of k events in a poisson process of expectation mu
     """
-    return np.exp(xlogy(k, mu) - gammaln(k + 1) - mu)
+    if out is None
+        return np.exp(xlogy(k, mu) - gammaln(k + 1) - mu)
+    else:
+        out[...] = np.exp(xlogy(k, mu) - gammaln(k + 1) - mu)
+        
+def poisson_rv(mu, size=None, out=None):
+    """
+    Probability of k events in a poisson process of expectation mu
+    """
+    if out is None
+        return np.random.poisson(mu, size=size)
+    else:
+        out[...] = np.random.poisson(mu, size=size)
 
 ufgcd = np.frompyfunc(fgcd, 2, 1)
 def gcd(m):
@@ -844,7 +856,7 @@ class ReferencedPoissonModel(qi.DerivedModel):
     DARK = 2
 
     def __init__(self, underlying_model):
-        super(ReferencedPoissonModel, self).__init__(underlying_model)
+        super(ReferencedPoissonModel, self).__init__(underlying_model, dview=None)
 
         if not (underlying_model.is_n_outcomes_constant and underlying_model.domain(None).n_members == 2):
             raise ValueError("Decorated model must be a two-outcome model.")
@@ -861,6 +873,7 @@ class ReferencedPoissonModel(qi.DerivedModel):
         self._domain = qi.IntegerDomain(min=0, max=1e6)
         
         self._Q = np.concatenate([self.underlying_model.Q, [0,0]])
+        self.dview = dview
         
         
 
@@ -968,7 +981,18 @@ class ReferencedPoissonModel(qi.DerivedModel):
         gamma = pr0 * alpha + (1 - pr0) * beta
 
         # work out likelihood of these rates for each outcome and return
-        L = poisson_pdf(outcomes[:,np.newaxis,np.newaxis], gamma[np.newaxis,:,:])
+        if self.dview is None:
+            L = poisson_pdf(outcomes[:,np.newaxis,np.newaxis], gamma[np.newaxis,:,:])
+        else:
+            n_engines = len(self.dview)
+            # we are careful to avoid copying arrays, passing only views.
+            L = np.empty((outcomes.shape[0], modelparams.shape[0], expparams.shape[0]))
+            self.dview.map_sync(
+                poisson_pdf,
+                [outcomes[:,np.newaxis,np.newaxis]] * n_engines,
+                np.array_split(gamma[np.newaxis,:,:], n_engines, axis=1),
+                out=np.array_split(L, axis=1)
+            )
 
         assert not np.any(np.isnan(L))
         return L
@@ -1002,7 +1026,17 @@ class ReferencedPoissonModel(qi.DerivedModel):
         beta = n_meas * modelparams[:, -1, np.newaxis]
         gamma = pr0 * alpha + (1 - pr0) * beta
         
-        outcomes = np.random.poisson(gamma, size=(repeat, n_mps))
+        if self.dview is None:
+            outcomes = np.random.poisson(gamma, size=(repeat, n_mps, n_eps))
+        else:
+            n_engines = len(self.dview)
+            outcomes = np.empty((repeat, n_mps, n_eps))
+            self.dview.map_sync(
+                poisson_rv,
+                np.array_split(gamma, n_engines, axis=0),
+                size=[(repeat, n_mps, n_eps)] * n_engines,
+                out=np.array_split(outcomes, axis=1)
+            )
         
         return outcomes[0,0,0] if outcomes.size == 1 else outcomes
 
