@@ -856,7 +856,7 @@ class ReferencedPoissonModel(qi.DerivedModel):
     DARK = 2
 
     def __init__(self, underlying_model):
-        super(ReferencedPoissonModel, self).__init__(underlying_model, dview=None)
+        super(ReferencedPoissonModel, self).__init__(underlying_model)
 
         if not (underlying_model.is_n_outcomes_constant and underlying_model.domain(None).n_members == 2):
             raise ValueError("Decorated model must be a two-outcome model.")
@@ -873,7 +873,6 @@ class ReferencedPoissonModel(qi.DerivedModel):
         self._domain = qi.IntegerDomain(min=0, max=1e6)
         
         self._Q = np.concatenate([self.underlying_model.Q, [0,0]])
-        self.dview = dview
         
         
 
