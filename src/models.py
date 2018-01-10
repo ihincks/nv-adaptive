@@ -1002,7 +1002,7 @@ class ReferencedPoissonModel(qi.DerivedModel):
         beta = n_meas * modelparams[:, -1, np.newaxis]
         gamma = pr0 * alpha + (1 - pr0) * beta
         
-        outcomes = np.random.poisson(gamma, size=(repeat, n_mps))
+        outcomes = np.random.poisson(gamma, size=(repeat, n_mps, n_eps))
         
         return outcomes[0,0,0] if outcomes.size == 1 else outcomes
 
