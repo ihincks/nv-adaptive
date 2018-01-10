@@ -915,7 +915,9 @@ class ReferencedPoissonModel(qi.DerivedModel):
         Note: This is incorrect as there are an infinite number of outcomes.
         We arbitrarily pick a number.
         """
-        return 1000
+        if expparams is None:
+            return self._domain.n_members
+        return [domain.n_members for domain in self.domain(expparams)]
 
     def domain(self, expparams):
         """
