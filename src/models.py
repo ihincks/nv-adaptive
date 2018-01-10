@@ -860,6 +860,8 @@ class ReferencedPoissonModel(qi.DerivedModel):
         # The domain for any mode of an experiment is all of the non-negative integers
         self._domain = qi.IntegerDomain(min=0, max=1e6)
         
+        self._Q = self.underlying_model.Q + [0,0]
+        
         
 
     ## PROPERTIES ##
@@ -867,6 +869,11 @@ class ReferencedPoissonModel(qi.DerivedModel):
     @property
     def n_modelparams(self):
         return super(ReferencedPoissonModel, self).n_modelparams + 2
+        
+    @property
+    def Q(self):
+        # derived model usually returns underlying_model._Q
+        return self._Q
 
     @property
     def modelparam_names(self):
