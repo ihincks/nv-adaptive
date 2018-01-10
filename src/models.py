@@ -978,32 +978,32 @@ class ReferencedPoissonModel(qi.DerivedModel):
 
         n_mps = modelparams.shape[0]
         n_eps = expparams.shape[0]
-        outcomes = np.empty(shape=(repeat, n_mps, n_eps))
-
-        for idx_ep, expparam in enumerate(expparams):
-            if expparam['mode'] == self.SIGNAL:
-                # Get the probability of outcome 1 for the underlying model.
- 
-                ep = np.array([expparam['p']]) if self._expparams_scalar else np.array([expparam])
-                pr0 = self.underlying_model.likelihood(
-                    np.array([0], dtype='uint'),
-                    modelparams[:,:-2],
-                    ep)[0,:,0]
-
-                # Reference Rate
-                alpha = expparam['n_meas'] * modelparams[:, -2]
-                beta = expparam['n_meas'] * modelparams[:, -1]
-
-                outcomes[:,:,idx_ep] = np.random.poisson(pr0 * alpha + (1 - pr0) * beta, size=(repeat, n_mps))
-            elif expparam['mode'] == self.BRIGHT:
-                alpha = expparam['n_meas'] * modelparams[:, -2]
-                outcomes[:,:,idx_ep] = np.random.poisson(alpha, size=(repeat, n_mps))
-            elif expparam['mode'] == self.DARK:
-                beta = expparam['n_meas'] * modelparams[:, -1]
-                outcomes[:,:,idx_ep] = np.random.poisson(beta, size=(repeat, n_mps))
-            else:
-                raise(ValueError('Unknown mode detected in ReferencedPoissonModel.'))
-
+        
+        # allow expparams to mix different types
+        mask_signal = expparams['mode'] == self.SIGNAL
+        mask_bright = expparams['mode'] == self.BRIGHT
+        mask_dark = expparams['mode'] == self.DARK
+        assert np.sum(mask_signal) + np.sum(mask_bright) + np.sum(mask_dark) == expparams.size
+        
+        # compute prob that state is |0> for all modelparams and eps
+        pr0 = np.empty((n_mps, n_eps))
+        if np.sum(mask_signal) > 0:
+            pr0[:, mask_signal] = self.underlying_model.likelihood(
+                np.array([0], dtype='uint'),
+                modelparams[:,:-2],
+                expparams[mask_signal]['p'] if self._expparams_scalar else expparams[mask_signal]
+            )[0,:,:]
+        pr0[:,mask_bright] = 1
+        pr0[:,mask_dark] = 0
+        
+        # now work out poisson rates for all combos of mps and eps
+        n_meas = expparams['n_meas'][np.newaxis, :]
+        alpha = n_meas * modelparams[:, -2, np.newaxis]
+        beta = n_meas * modelparams[:, -1, np.newaxis]
+        gamma = pr0 * alpha + (1 - pr0) * beta
+        
+        outcomes = np.random.poisson(gamma, size=(repeat, n_mps))
+        
         return outcomes[0,0,0] if outcomes.size == 1 else outcomes
 
     def update_timestep(self, modelparams, expparams):
