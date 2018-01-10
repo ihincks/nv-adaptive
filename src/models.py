@@ -860,7 +860,7 @@ class ReferencedPoissonModel(qi.DerivedModel):
         # The domain for any mode of an experiment is all of the non-negative integers
         self._domain = qi.IntegerDomain(min=0, max=1e6)
         
-        self._Q = self.underlying_model.Q + [0,0]
+        self._Q = np.concatenate([self.underlying_model.Q, [0,0]])
         
         
 
