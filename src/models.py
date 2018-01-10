@@ -952,11 +952,12 @@ class ReferencedPoissonModel(qi.DerivedModel):
         
         # compute prob that state is |0> for all modelparams and eps
         pr0 = np.empty((modelparams.shape[0], expparams.shape[0]))
-        pr0[:, mask_signal] = self.underlying_model.likelihood(
-            np.array([0], dtype='uint'),
-            modelparams[:,:-2],
-            expparams[mask_bright]['p'] if self._expparams_scalar else expparams[mask_bright]
-        )[0,:,:]
+        if np.sum(mask_signal) > 0:
+            pr0[:, mask_signal] = self.underlying_model.likelihood(
+                np.array([0], dtype='uint'),
+                modelparams[:,:-2],
+                expparams[mask_signal]['p'] if self._expparams_scalar else expparams[mask_signal]
+            )[0,:,:]
         pr0[:,mask_bright] = 1
         pr0[:,mask_dark] = 0
         
