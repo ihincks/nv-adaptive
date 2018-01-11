@@ -523,7 +523,11 @@ class DataFrameLiveView(object):
             DataFrameLiveView.update_line(axis.lines[idx+2], x_vals, data)
 
         n_meas = df['expparam'][df.shape[0]-1]['n_meas']
-        esm = n_meas * compute_single_eff_num_bits(bright_means[-1], dark_means[-1])
+        var_alpha, var_beta = np.diag(df['smc_cov'][df.shape[0]-1])[5:7]
+        esm = n_meas * compute_single_eff_num_bits(
+                bright_means[-1], dark_means[-1],
+                var_alpha=var_alpha, var_beta=var_beta
+            )
         axis.set_ylim([0.9 * np.amin(dark_lower), 1.1 * np.amax(bright_upper)])
         axis.set_title('Repetitions:{0}, ESM:{1:.1f}'.format(asscalar(n_meas), asscalar(esm)))
             
