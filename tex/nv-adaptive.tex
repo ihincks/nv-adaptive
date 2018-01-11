@@ -10,10 +10,12 @@
 
 %% OTHER NOTATION %%
 
-% Normalize spelling, font decoration.
 \newcommand{\mps}{x}
 \newcommand{\eps}{e}
 \newcommand{\data}{d}
+\newcommand{\nparticles}{n_\text{p}}
+\newcommand{\neps}{n_\text{e}}
+\newcommand{\noutcomes}{n_\text{o}}
 
 \newcommand{\MLE}{\text{MLE}}
 \newcommand{\ESM}{\text{ESM}}
@@ -489,15 +491,188 @@ This is justified due to its long $T_1$ time with respect to a single
 experiment---in 
 
 %=============================================================================
-\section{Risk Approximations}
-\label{apx:risk-approximations}
+\section{Computing the Bayes Risk}
+\label{apx:computing-bayes-risk}
 %=============================================================================
 
-%=============================================================================
-\section{BCRB for Hamiltonian Learning}
-\label{apx:bcrb}
-%=============================================================================
+In online Bayesian heuristics, hypothetical posteriors are 
+typically used to decide which experiment to run next.
+For example, the squared error risk of experiment $\eps$ can
+be written as the posterior variance marginalized over all data
+that the current prior deems relevant:
+\begin{align}
+    r(\eps)
+        &= \expect_\data \Var_Q[x|\eps,\data] \nonumber \\
+        &= \int \Pr(\data|\eps) 
+            \int \Pr(\mps|\data,\eps)
+            (\mps-\hat{\mps}(\data,\eps))^\T \cdot Q\cdot
+                (\mps-\hat{\mps}(\data,\eps))
+                \dd\mps \dd\data
+    \label{eq:mse-risk}
+\end{align}
+Here, $Q$ is a positive semi-definite weight matrix,
+$\Pr(\data|\eps)=\int\Pr(\data|\mps,\eps)\Pr(\mps)\dd\mps$ is the total
+probability of $\data$ under the current prior given experiment $\eps$, and
+$\hat\mps(\data,\eps)$ is the Bayes estimator of $\mps$ given
+hypothetical data $\data$ under experiment $\eps$, i.e.,
+\begin{align}
+    \hat\mps(\data,\eps) = \int \mps\Pr(\mps|\data,\eps)\dd\mps.
+\end{align}
+
+Integrals becomes sums if relevant parameters are discrete, or,
+as is the case with our implementation, if distributions are stored
+as finite lists of weighted particles.
+The value of \autoref{eq:mse-risk} becomes very expensive to compute,
+considering also that we need to calculate it for many candidate
+experiments $\eps$.
+If distributions over $\mps$ are stored using $\nparticles$ particles,
+and $\neps$ experimental configurations are of interest, 
+and $\noutcomes$ outcomes are relevant, then
+we require $\neps\cdot\nparticles\cdot\noutcomes$ 
+calculations of the model's likelihood function.
+The values $\neps$ and $\nparticles$ can only be lowered so far;
+we need enough $\nparticles$ to effective store a distribution,
+and the landscape of $r(\eps)$ is non-trivial, so that looking at many 
+values of $\neps$ is required even if we are being more clever than
+brute-force.
+
+There headway to make some improvement on $\noutcomes$, however.
+For the NV center, outcomes are Poisson counts, which
+can be any non-negative integer.
+Obviously this should be restricted to only those which are 
+relevant, for example, all integers between the dark
+reference and the bright reference with some standard
+deviations added on.
+This is about as good as we can hope for if we explicitly
+sum over outcomes in our risk evaluation.
+In the regime we operated our experiment, this scheme incurs roughly 
+$\noutcomes=500$, and gets worse with better NV optics, or
+more experiment repetitions. 
 
 
+We can make more notable improvements if we notice
+that we are not interested in the actual values of $r(e)$,
+just in the relative value with respect to many experiments
+$e$; we want to choose the experiment which minimizes risk.
+Therefore we can settle on some stand-in function
+for $r(e)$ that hopefully shares the same minimum location.
+
+The simplest is to imagine that we are making single strong measurements
+instead of collecting data through a referenced Poisson model.
+In this case, there are two outcomes $d\in\{0,1\}$ corresponding to 
+the measurement projectors $\ketbra{0}$ and $\I-\ketbra{0}$, respectively.
+In this case our proxy for the full risk is
+\begin{align}
+    r_\text{Bernoulli}(\eps)
+        &= \sum_{\data\in\{0,1\}} \Pr(d|\eps) 
+            \int \Pr(\mps|d,\eps)
+                (\mps-\hat{\mps}(\data,\eps))^\T \cdot Q\cdot
+                (\mps-\hat{\mps}(\data,\eps))
+                \dd\mps
+\end{align}
+noting that we only need to compute the posterior distributions 
+for one outcome, since $\Pr(\data=0|\mps,\eps)+\Pr(\data=1|\mps,\eps)=1$.
+Thus we have $\noutcomes=1$.
+In a similar way, we could use a binomial model as a proxy for the actual
+risk under the assumption 
+$\argmin_\eps r(\eps)\approx \argmin_\eps r_\text{binomial}(\eps)$.
+
+The intuition behind these Bernoulli and binomial stand-ins 
+is that the most informative experiment---with
+respect to parameters describing the quantum system---for
+hypothetical strong measurements shouldn't be much different 
+than the most informative experiment for a referenced Poisson measurement.
+This reasoning is not exact, however.
+This is most easily illustrated by the curves in 
+\autoref{fig:effective-strong-meas}.
+Here we see the mean-squared-error (of Bayes estimates) under a
+binomial model and a referenced Poisson model in several regimes.
+Though the MSE averaged over $p$ is roughly the same for
+both models, the behavior for specific $p$ can be quite different.
+We see that in relevant parameter regimes ($\alpha>1000$) that the binomial
+MSE is low near the boundaries $[0,1]$ and highest in the middle,
+whereas the referenced Poisson model is roughly flat across $p$.
+This means that using a binomial model as a proxy would, on average, 
+discourage selecting experiments whose expected value of 
+$p$ is near the middle of $[0,1]$, when in fact, such experiments
+might sometimes be the best ones.
+
+Our second approach to reduce computation time of $r(e)$ is to 
+approximate it through Fisher information, where the sum
+over outcomes can be done analytically.
+In particular, we make use of van Trees' inequality (also known
+as the Bayesian Cramer-Rao bound) which gives
+\begin{align}
+    r(\eps) &\geq
+        \frac{1}{
+            \expect_{\mps\sim\Pr(\mps)} \left[
+                \nabla_\mps \ell(\mps,\eps)^\T\cdot Q
+                \cdot \nabla_\mps \ell(\mps,\eps)
+            \right]
+            +\mathcal{I}(\mps)
+       =: \BCRB(\mps,\eps)
+        }
+\end{align}
+where the left hand side is the quantity of interest, and the
+right hand side is a lower bound for this quantity.
+The first term of the denominator is the Fisher information
+weighted by $Q$ marginalized over the current prior.
+The second term of the denominator is the information of the prior, 
+equal to the weighted Fisher information of the prior marginalized
+over the prior, which in the
+sequential Bayesian update paradigm, is the cumulative sum 
+of all previous marginalized-Fisher-information-values.
+Since Bayesian analysis often nearly saturates this bound,
+we use the right hand side as an approximation of the left hand side.
+
+To compute the right hand side, recall that the log-likelihood of 
+our model is given by
+\begin{align}
+    \log\Lhood(\mps;\data,\eps)
+        &= -(\beta+p(\mps,\eps)(\alpha-\beta)) 
+            + \data\log(\beta+p(\mps,\eps)(\alpha-\beta))
+            - \log(\data!)
+\end{align}
+where $p(\mps,\eps)$ is the Born rule probability of the quantum 
+system, as defined in \TODO.
+This produces the weighted Fisher information value $J(\mps,\eps)$,
+calculated as
+\begin{align}
+    J(\mps,\eps) &= \expect_\data \left[
+            \sum_{i,j} 
+            \frac{\partial\log\Lhood}{\partial\mps_i}Q_{i,j}
+            \frac{\partial\log\Lhood}{\partial\mps_j} 
+        \right] \nonumber \\
+        &= \sum_{i,j} Q_{i,j}
+        \frac{\partial p}{\partial\mps_i}
+        \frac{\partial p}{\partial\mps_j}
+        \expect_\data \left[
+            \frac{\partial\log\Lhood}{\partial p}
+            \frac{\partial\log\Lhood}{\partial p}
+        \right] \nonumber \\
+        &= \sum_{i,j} Q_{i,j}
+        \frac{\partial p}{\partial\mps_i}
+        \frac{\partial p}{\partial\mps_j}
+        \expect_\data \left[
+            \left(
+                \alpha-\beta-\frac{z(\alpha-\beta)}{\beta+p(\alpha-\beta)}
+            \right)^2
+        \right] \nonumber \\
+        &= \frac{(\alpha-\beta)^2}{\beta+p(\mps,\eps)(\alpha-\beta)}
+            \nabla_\mps(p(\mps,\eps))^\T\cdot Q\cdot \nabla_\mps(p(\mps,\eps))
+\end{align}
+where the expectation of $\data$ is just using the likelihood function
+$\Pr(\data|\mps,\eps)$ and no priors.
+Thus $1/\BCRB(\mps,\eps)=\expect_\mps [J(\mps,\eps)]+\mathcal{I}(\mps)$
+and we have again eliminated the need to sum over distinct outcomes.
+Note that $\alpha$ and $\beta$ here are components of $\mps$, so we
+sum over our current knowledge of them, too.
+This comes at the cost of having to compute $p(\mps,\eps)$ in addition
+to its gradient, but the gradient involves no extra matrix exponentials,
+and in the worst case we can use a finite different which induces 
+an overhead that scales in the dimension of $\mps$.
+
+At the end of the day, a heuristic is a heuristic, and they need to 
+be tested against each other to really find the best one.
 
 \end{document}
