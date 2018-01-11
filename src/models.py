@@ -45,6 +45,7 @@ GZ = 1j *(np.kron(HZ.T, np.eye(3)) - np.kron(np.eye(3), HZ))
 HZ2 = 2 * np.pi * Sz2
 GZ2 = 1j *(np.kron(HZ2.T, np.eye(3)) - np.kron(np.eye(3), HZ2))
 Gi = np.eye(9)
+LZ = (np.kron(Sz, Sz) - (np.kron(Sz2, Si) + np.kron(Si, Sz2)) / 2)
 
 class RepeatedOperator(object):
     def __init__(self, op):
@@ -67,7 +68,7 @@ vecSx = RepeatedOperator(-1j * 2 * np.pi * Sx)
 vecSyp = RepeatedOperator(-1j * 2 * np.pi * Syp)
 vecSz = RepeatedOperator(-1j * 2 * np.pi * Sz)
 vecSz2 = RepeatedOperator(-1j * 2 * np.pi * Sz2)   
-vecLz = RepeatedOperator((np.kron(Sz, Sz) - (np.kron(Sz2, Si) + np.kron(Si, Sz2)) / 2))
+vecLz = RepeatedOperator(LZ)
 vecPhasePlus = RepeatedOperator(np.array([0,1,0,0,0,0,0,1,0]))
 vecPhaseMinus = RepeatedOperator(np.array([0,0,0,1,0,1,0,0,0]))
 vecPhaseNone = RepeatedOperator(np.array([1,0,1,0,1,0,1,0,1]))
@@ -137,8 +138,7 @@ class CachedPropagator(object):
         base2_expansion = map(lambda x: 0 if x == '0' else 1, np.base_repr(mult))
         return self.propagator(tuple(base2_expansion))
     
-
-def rabi_cached(tp, tau, phi, wr, we, dwc, an, T2inv):
+def rabi_cached(tp, tau, phi, wr, we, dwc, an, T2inv, compute_grad=False):
     n_models = wr.shape[0]
     base_timestep = gcd(tp * 1000) / 1000
     # supergenerator without nitrogen
@@ -157,7 +157,19 @@ def rabi_cached(tp, tau, phi, wr, we, dwc, an, T2inv):
     for idx_t, t in enumerate(tp):
         pr0[idx_t, :]  = np.real(Sm(t)[:, 4, 4] + S0(t)[:, 4, 4] + Sp(t)[:, 4, 4]) / 3
 
-    return pr0
+    if compute_grad:
+        grad = np.empty((5, tp.size, wr.size))
+        # wr, we, center, an, T2inv
+        for idx_t, t in enumerate(tp):
+            total_S = Sm(t) + S0(t) + Sp(t)
+            grad[0, idx_t, :] = np.matmul(GX, total_S)[:,4,4] / 3
+            grad[1, idx_t, :] = np.matmul(GZ, total_S)[:,4,4] / 3
+            grad[2, idx_t, :] = np.matmul(GZ2, total_S)[:,4,4] / 3
+            grad[3, idx_t, :] = np.matmul(GZ, Sp(t) - Sm(t))[:,4,4] / 3
+            grad[4, idx_t, :] = np.matmul(LZ, total_S)[:,4,4] / 3
+        return pr0, grad
+    else:
+        return pr0
     
 def ramsey_cached(tp, tau, phi, wr, we, dwc, an, T2inv):
     """
@@ -378,7 +390,7 @@ class MemoizeLikelihood(object):
             self._cached_lhood = self._lhood(obj, outcomes, modelparams, expparams)
         return self._cached_lhood
 
-class RabiRamseyModel(qi.FiniteOutcomeModel):
+class RabiRamseyModel(qi.FiniteOutcomeModel, qi.DifferentiableModel):
     r"""
     Model of a single shot in a Rabi flopping experiment.
     
@@ -459,14 +471,8 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
 
     def n_outcomes(self, expparams):
         return 2
-        
-    #@MemoizeLikelihood
-    def likelihood(self, outcomes, modelparams, expparams):
-        """
-        Returns the likelihood of measuring |0> under a projective
-        measurement.
-        """
-        
+    
+    def _simulated_probs(self, modelparams, expparams, return_grad=False):
         # get model details for all particles
         wr    = modelparams[:, self.IDX_OMEGA]
         we    = modelparams[:, self.IDX_ZEEMAN]
@@ -476,9 +482,7 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
         
         # get expparam details
         mode = expparams['emode']
-        t = expparams['t'] 
-        tau = expparams['tau'] 
-        phi = expparams['phi']
+        t, tau, phi =  expparams['t'], expparams['tau'], expparams['phi']
         
         # note that all wo have to be the same, this considerably improves simulator efficiency
         wo = expparams['wo'][0] 
@@ -488,18 +492,63 @@ class RabiRamseyModel(qi.FiniteOutcomeModel):
         # figure out which experements are rabi and ramsey
         rabi_mask, ramsey_mask = mode == self.RABI, mode == self.RAMSEY
         
-        # run both simulations
+        # finally run all simulations
         pr0 = np.empty((expparams.shape[0], modelparams.shape[0]))
-        if rabi_mask.sum() > 0:
-            pr0[rabi_mask] = self.simulator[self.RABI](
-                    t[rabi_mask], 0, 0, wr, we, dwc-wo, an, T2inv
-                )
-        if ramsey_mask.sum() > 0:
-            pr0[ramsey_mask] = self.simulator[self.RAMSEY](
-                    t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc-wo, an, T2inv
-                )
-
-        return qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0.T)
+        if return_grad:
+            grad = np.empty((5, expparams.shape[0], modelparams.shape[0]))
+            if rabi_mask.sum() > 0:
+                pr0[rabi_mask,:], grad[:,rabi_mask,:] = self.simulator[self.RABI](
+                        t[rabi_mask], 0, 0, wr, we, dwc-wo, an, T2inv
+                    )
+            if ramsey_mask.sum() > 0:
+                pr0[ramsey_mask,:], grad[:,ramsey_mask,:] = self.simulator[self.RAMSEY](
+                        t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc-wo, an, T2inv
+                    )
+            return pr0.T, grad.transpose(0,2,1)
+        else:
+            if rabi_mask.sum() > 0:
+                pr0[rabi_mask,:] = self.simulator[self.RABI](
+                        t[rabi_mask], 0, 0, wr, we, dwc-wo, an, T2inv
+                    )
+            if ramsey_mask.sum() > 0:
+                pr0[ramsey_mask,:] = self.simulator[self.RAMSEY](
+                        t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc-wo, an, T2inv
+                    )
+            return pr0.T
+            
+    
+    #@MemoizeLikelihood
+    def likelihood(self, outcomes, modelparams, expparams):
+        """
+        Returns the likelihood of measuring |0> under a projective
+        measurement.
+        """
+        pr0 = self._simulated_probs(modelparams, expparams, return_grad=False)
+        return qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0)
+        
+    def score(self, outcomes, modelparams, expparams, return_L=False):
+        pr0, grad = self._simulated_probs(modelparams, expparams, return_grad=True)
+        prs = qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0)
+        signs = np.ones((0,outcomes.shape[0],0,0))
+        signs[0,outcomes==1,0,0] = -1
+        score = signs * grad[:,np.newaxis,:,:] / prs[np.newaxis,:,:,:]
+        
+        if return_L:
+            return score, prs 
+        else:
+            return score
+            
+    def grad(self, outcomes, modelparams, expparams, return_L=False):
+        pr0, grad = self._simulated_probs(modelparams, expparams, return_grad=True)
+        prs = qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0)
+        signs = np.ones((0,outcomes.shape[0],0,0))
+        signs[0,outcomes==1,0,0] = -1
+        grad = signs * grad[:,np.newaxis,:,:]
+        
+        if return_L:
+            return grad, prs 
+        else:
+            return grad
         
 class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
     r"""
@@ -813,7 +862,7 @@ class ExtendedPrior(qi.Distribution):
                 ref_sample
             ], axis=1)
 
-class ReferencedPoissonModel(qi.DerivedModel):
+class ReferencedPoissonModel(qi.DerivedModel, qi.DifferentiableModel):
     """
     Model whose "true" underlying model is a coin flip, but where the coin is
     only accessible by drawing three poisson random variates, the rate
@@ -1039,6 +1088,22 @@ class ReferencedPoissonModel(qi.DerivedModel):
                 np.repeat(modelparams[:,-2:,np.newaxis], expparams.shape[0], axis=2)
             ], axis=1)
             
+    def score(self, outcomes, modelparams, expparams, return_L):
+        raise NotImplemented('We can compute fisher info directly, so skip the score.')
+        
+    def fisher_information(self, modelparams, expparams):
+        
+        n_meas = expparams['n_meas'][np.newaxis, :]
+        alpha = n_meas * modelparams[:, -2, np.newaxis]
+        beta = n_meas * modelparams[:, -1, np.newaxis]
+        
+        outcomes = np.array([0])
+        grad, L = self.underlying_model.grad(outcomes, modelparams, expparams, return_L=True)
+        
+        factor = (alpha - beta)**2 / (beta + L * (alpha - beta))
+        fi = grad[:,np.newaxis,:,:] * grad[np.newaxis,:,:]
+        fi *= factor[np.newaxis, np.newaxis,:,:]
+        return fi
             
 class BridgedRPMUpdater(qi.SMCUpdater):
     """
