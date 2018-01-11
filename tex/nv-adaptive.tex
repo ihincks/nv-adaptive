@@ -18,6 +18,9 @@
 \newcommand{\MLE}{\text{MLE}}
 \newcommand{\ESM}{\text{ESM}}
 
+\renewcommand{\H}{H}
+\newcommand{\uw}{{\mu\text{w}}}
+
 
 % http://tex.stackexchange.com/a/112947/615
 \newcommand{\apxref}[1]{\hyperref[#1]{Appendix~\ref{#1}}}
@@ -176,15 +179,63 @@ otherwise.
 Conventionally, as an example, Rabi curves are generated 
 with offline heuristics, where the next experiment is chosen by 
 increasing the pulse time by a fixed duration in each experiment.
+The number of experiments and pulse time increments are chosen through
+Nyquist considerations.
+
+%=============================================================================
+\section{System Model}
+\label{sec:system-model}
+%=============================================================================
+
+The quantum system used in our experiment is a nitrogen vacancy (NV) center,
+which is a defect in diamond consisting of a nitrogen adjacent to 
+a vacant lattice position.
+When in its stable negatively charged configuration, NV$^-$, 
+the vacancy is filled with
+six electrons that form an effective spin-1 particle in the optical
+ground state---this three level subspace comprises the system of interest.
+The eigenstates are labeled $\ket{0}$, $\ket{-1}$, and $\ket{+1}$.
+There is a zero field splitting (ZFS) of $D\approx\SI{2.87}{GHz}$ 
+between $\ket{0}$ and the $\ket{-1},\ket{+1}$ manifold 
+that---at low fields ($\lesssim\SI{100}{G}$)---is the dominant energy term,
+defining our $z$-axis.
+The Zeeman splitting between $\ket{-1}$ and $\ket{+1}$ is determined by
+the magnetic field projection onto the $z$-axis, equal to
+$\omega_e=\gamma_e |B_z|$ in the secular approximation, 
+where $\gamma_e=\SI{2.80}{MHz/G}$.
+Spin manipulation is achieved with resonant microwave driving near
+the transitions $D\pm\omega_e$.
+Long coherence times are observed at room temperature, where
+the spin state can be initialized and measured optically, and single 
+defects are studied in isolation using confocal microscopy.
+
+In the rotating frame, with the rotating wave and secular approximations,
+the Hamiltonian of the optical ground state is given by
+\begin{align}
+    \H/2\pi &= (D-\omega_\uw)\Sz^2 + (\omega_e+A \Iz)\Sz + \Omega(t)\Sx
+\end{align}
+where $(\Sx,\Sy,\Sz)$ are the spin-1 operators, $\omega_\uw$ is the applied
+microwave frequency, $\Omega(t)$ is the microwave drive strength, $A$ is
+the hyperfine splitting  due to the adjacent nitrogen-14 atom, and $\Iz$
+is the nitrogen spin-1 operator along $z$.
+Along with the $T_2^*$ decoherence time which introduces the 
+Lindblad operator $L=\sqrt{1/T_2^*}\Sz$, these parameter are sufficient
+to simulate the experiments we perform.
+Therefore, the model parameters of our spin system are given by
+\begin{align}
+    \mps=(\Omega,\omega_e,A,
+\end{align}
+
+
 
 %=============================================================================
 \section{Implementation}
 \label{sec:implementation}
 %=============================================================================
 
-We implement 
+We implement  \autoref{tab:heuristics}.
 
-\begin{table}
+\begin{table*}[t]
     \centering
     \begin{tabularx}{\textwidth}{lX}
         \textbf{Heuristic} & \textbf{Definition} \\
@@ -194,7 +245,7 @@ We implement
     \end{tabularx}
     \caption{Summary of heuristics used in experiments.}
     \label{tab:heuristics}
-\end{table}    
+\end{table*}    
 
 %=============================================================================
 \section{Results}
@@ -393,7 +444,7 @@ which results in
     n_\ESM = \frac{
             (\alpha-\beta)^2
         }{
-            3\alpha+3\beta+2\left(\sigma_\alpha^2+\sigma_\beta^2\right)
+            3(\alpha+\beta)+2\left(\sigma_\alpha^2+\sigma_\beta^2\right)
         }.
 \end{align}
 This shows, for example, 
@@ -423,6 +474,24 @@ for the referenced Poisson model and a binomial model with $n=n_\ESM$.
     and the right column uses regular Poisson error bars.}
     \label{fig:effective-strong-meas}
 \end{figure}
+
+%=============================================================================
+\section{Simulation the Nitrogen}
+\label{apx:nitrogen-sim}
+%=============================================================================
+
+The nitrogen atom adjacent to the vacancy couples to our system with
+an isotropic hyperfine interaction, $A\cdot\Sz\otimes\Iz$.
+Therefore, for a given experiment, we treat it as a small fixed magnet
+with strength $m_I A$, where $m_I\in\{-1,0,+1\}$ is its current eigenstate,
+
+This is justified due to its long $T_1$ time with respect to a single
+experiment---in 
+
+%=============================================================================
+\section{Risk Approximations}
+\label{apx:risk-approximations}
+%=============================================================================
 
 %=============================================================================
 \section{BCRB for Hamiltonian Learning}
