@@ -80,7 +80,7 @@ def compute_eff_num_bits(n_meas, updater):
     # haunt me
     mu_alpha, mu_beta = updater.est_mean()[5:7]
     var_alpha, var_beta = np.diag(updater.est_covariance_mtx())[5:7]
-    return asscalar(compute_single_eff_num_bits(
+    return asscalar(n_meas * compute_single_eff_num_bits(
         mu_alpha, mu_beta, 
         var_alpha=var_alpha, var_beta=var_beta
     ))
@@ -813,22 +813,19 @@ class LinearHeuristic(qi.Heuristic):
 class PredeterminedSingleAdaptHeuristic(qi.Heuristic):
     def __init__(self, updater, rabi_eps, ramsey_eps, name=None):
         self.updater = updater
-        self._rabi_eps = rabi_eps
-        self._ramsey_eps = rabi_eps
+        self.n_rabi = rabi_eps.size
+        self._eps = np.concatenate([rabi_eps, ramsey_eps])
         
         self._idx = 0
+        self._tp = 0
         self.name = "Predetermined with single adaptation Heuristic" if name is None else name
         
     def __call__(self, tp):
-        idx = self._idx
-        if idx < self._rabi_eps.size:
-            eps = self._rabi_eps[idx, np.newaxis]
-        else:
-            idx -= self._rabi_eps.size
-            if idx == 0:
-                self._tp = tp
-            eps = self._ramsey_eps[idx, np.newaxis]
-            eps['tau'] = self._tp
+        if self._idx == self.n_rabi:
+            self._tp = tp
+        eps = self._eps[self._idx, np.newaxis]
+        if self._idx >= self.n_rabi:
+            eps['t'] = self._tp
 
         self._idx += 1
         return eps
