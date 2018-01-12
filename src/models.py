@@ -17,6 +17,22 @@ from fractions import gcd as fgcd
 
 from glob import glob
 
+try:
+    import ipyparallel as ipp
+    interactive = ipp.interactive
+except ImportError:
+    try:
+        import IPython.parallel as ipp
+        interactive = ipp.interactive
+    except (ImportError, AttributeError):
+        import warnings
+        warnings.warn(
+            "Could not import IPython parallel. "
+            "Parallelization support will be disabled."
+        )
+        ipp = None
+        interactive = lambda fn: fn
+
 ## CONSTANTS ##################################################################
 
 # Construct Relevant operators
@@ -162,11 +178,12 @@ def rabi_cached(tp, tau, phi, wr, we, dwc, an, T2inv, compute_grad=False):
         # wr, we, center, an, T2inv
         for idx_t, t in enumerate(tp):
             total_S = Sm(t) + S0(t) + Sp(t)
-            grad[0, idx_t, :] = np.matmul(GX, total_S)[:,4,4] / 3
-            grad[1, idx_t, :] = np.matmul(GZ, total_S)[:,4,4] / 3
-            grad[2, idx_t, :] = np.matmul(GZ2, total_S)[:,4,4] / 3
-            grad[3, idx_t, :] = np.matmul(GZ, Sp(t) - Sm(t))[:,4,4] / 3
-            grad[4, idx_t, :] = np.matmul(LZ, total_S)[:,4,4] / 3
+            grad[0, idx_t, :] = np.real(np.matmul(GX, total_S)[:,4,4]) / 3
+            grad[1, idx_t, :] = np.real(np.matmul(GZ, total_S)[:,4,4]) / 3
+            grad[2, idx_t, :] = np.real(np.matmul(GZ2, total_S)[:,4,4]) / 3
+            grad[3, idx_t, :] = np.real(np.matmul(GZ, Sp(t) - Sm(t))[:,4,4]) / 3
+            grad[4, idx_t, :] = np.real(np.matmul(LZ, total_S)[:,4,4]) / 3
+        import pdb; pdb.set_trace()
         return pr0, grad
     else:
         return pr0
@@ -498,11 +515,11 @@ class RabiRamseyModel(qi.FiniteOutcomeModel, qi.DifferentiableModel):
             grad = np.empty((5, expparams.shape[0], modelparams.shape[0]))
             if rabi_mask.sum() > 0:
                 pr0[rabi_mask,:], grad[:,rabi_mask,:] = self.simulator[self.RABI](
-                        t[rabi_mask], 0, 0, wr, we, dwc-wo, an, T2inv
+                        t[rabi_mask], 0, 0, wr, we, dwc-wo, an, T2inv, compute_grad=True
                     )
             if ramsey_mask.sum() > 0:
                 pr0[ramsey_mask,:], grad[:,ramsey_mask,:] = self.simulator[self.RAMSEY](
-                        t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc-wo, an, T2inv
+                        t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc-wo, an, T2inv, compute_grad=True
                     )
             return pr0.T, grad.transpose(0,2,1)
         else:
@@ -529,7 +546,7 @@ class RabiRamseyModel(qi.FiniteOutcomeModel, qi.DifferentiableModel):
     def score(self, outcomes, modelparams, expparams, return_L=False):
         pr0, grad = self._simulated_probs(modelparams, expparams, return_grad=True)
         prs = qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0)
-        signs = np.ones((0,outcomes.shape[0],0,0))
+        signs = np.ones((1,outcomes.shape[0],1,1))
         signs[0,outcomes==1,0,0] = -1
         score = signs * grad[:,np.newaxis,:,:] / prs[np.newaxis,:,:,:]
         
@@ -541,7 +558,7 @@ class RabiRamseyModel(qi.FiniteOutcomeModel, qi.DifferentiableModel):
     def grad(self, outcomes, modelparams, expparams, return_L=False):
         pr0, grad = self._simulated_probs(modelparams, expparams, return_grad=True)
         prs = qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0)
-        signs = np.ones((0,outcomes.shape[0],0,0))
+        signs = np.ones((1,outcomes.shape[0],1,1))
         signs[0,outcomes==1,0,0] = -1
         grad = signs * grad[:,np.newaxis,:,:]
         
@@ -549,6 +566,29 @@ class RabiRamseyModel(qi.FiniteOutcomeModel, qi.DifferentiableModel):
             return grad, prs 
         else:
             return grad
+
+class ParallelModel(qi.DirectViewParallelizedModel):
+    def grad(self, outcomes, modelparams, expparams, return_L=False):
+       
+        @interactive
+        def serial_grad(mps, sm, os, eps, return_L):
+            return sm.grad(os, mps, eps, return_L)
+
+        results = self._dv.map_sync(
+            serial_grad,
+            np.array_split(modelparams, self.n_engines, axis=0),
+            [self.underlying_model] * self.n_engines,
+            [outcomes] * self.n_engines,
+            [expparams] * self.n_engines,
+            [return_L] * self.n_engines
+        )
+
+        if return_L:
+            g = np.concatenate([r[0] for r in results], axis=2)
+            L = np.concatenate([r[1] for r in results], axis=1)
+            return g, L
+        else:
+            return np.concatenate(results, axis=2)
         
 class RabiRamseyExtendedModel(qi.FiniteOutcomeModel):
     r"""
