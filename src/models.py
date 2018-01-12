@@ -154,7 +154,7 @@ class CachedPropagator(object):
         base2_expansion = map(lambda x: 0 if x == '0' else 1, np.base_repr(mult))
         return self.propagator(tuple(base2_expansion))
     
-def rabi_cached(tp, tau, phi, wr, we, dwc, an, T2inv, compute_grad=False):
+def rabi_cached(tp, tau, phi, wr, we, dwc, an, T2inv):
     n_models = wr.shape[0]
     base_timestep = gcd(tp * 1000) / 1000
     # supergenerator without nitrogen
@@ -173,20 +173,7 @@ def rabi_cached(tp, tau, phi, wr, we, dwc, an, T2inv, compute_grad=False):
     for idx_t, t in enumerate(tp):
         pr0[idx_t, :]  = np.real(Sm(t)[:, 4, 4] + S0(t)[:, 4, 4] + Sp(t)[:, 4, 4]) / 3
 
-    if compute_grad:
-        grad = np.empty((5, tp.size, wr.size))
-        # wr, we, center, an, T2inv
-        for idx_t, t in enumerate(tp):
-            total_S = Sm(t) + S0(t) + Sp(t)
-            grad[0, idx_t, :] = np.real(np.matmul(GX, total_S)[:,4,4]) / 3
-            grad[1, idx_t, :] = np.real(np.matmul(GZ, total_S)[:,4,4]) / 3
-            grad[2, idx_t, :] = np.real(np.matmul(GZ2, total_S)[:,4,4]) / 3
-            grad[3, idx_t, :] = np.real(np.matmul(GZ, Sp(t) - Sm(t))[:,4,4]) / 3
-            grad[4, idx_t, :] = np.real(np.matmul(LZ, total_S)[:,4,4]) / 3
-        import pdb; pdb.set_trace()
-        return pr0, grad
-    else:
-        return pr0
+    return pr0
     
 def ramsey_cached(tp, tau, phi, wr, we, dwc, an, T2inv):
     """
@@ -445,6 +432,7 @@ class RabiRamseyModel(qi.FiniteOutcomeModel, qi.DifferentiableModel):
         }
 
         self._domain = qi.IntegerDomain(min=0, max=1)
+        
 
     @property
     def n_modelparams(self):
@@ -489,7 +477,7 @@ class RabiRamseyModel(qi.FiniteOutcomeModel, qi.DifferentiableModel):
     def n_outcomes(self, expparams):
         return 2
     
-    def _simulated_probs(self, modelparams, expparams, return_grad=False):
+    def _simulated_probs(self, modelparams, expparams):
         # get model details for all particles
         wr    = modelparams[:, self.IDX_OMEGA]
         we    = modelparams[:, self.IDX_ZEEMAN]
@@ -511,27 +499,15 @@ class RabiRamseyModel(qi.FiniteOutcomeModel, qi.DifferentiableModel):
         
         # finally run all simulations
         pr0 = np.empty((expparams.shape[0], modelparams.shape[0]))
-        if return_grad:
-            grad = np.empty((5, expparams.shape[0], modelparams.shape[0]))
-            if rabi_mask.sum() > 0:
-                pr0[rabi_mask,:], grad[:,rabi_mask,:] = self.simulator[self.RABI](
-                        t[rabi_mask], 0, 0, wr, we, dwc-wo, an, T2inv, compute_grad=True
-                    )
-            if ramsey_mask.sum() > 0:
-                pr0[ramsey_mask,:], grad[:,ramsey_mask,:] = self.simulator[self.RAMSEY](
-                        t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc-wo, an, T2inv, compute_grad=True
-                    )
-            return pr0.T, grad.transpose(0,2,1)
-        else:
-            if rabi_mask.sum() > 0:
-                pr0[rabi_mask,:] = self.simulator[self.RABI](
-                        t[rabi_mask], 0, 0, wr, we, dwc-wo, an, T2inv
-                    )
-            if ramsey_mask.sum() > 0:
-                pr0[ramsey_mask,:] = self.simulator[self.RAMSEY](
-                        t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc-wo, an, T2inv
-                    )
-            return pr0.T
+        if rabi_mask.sum() > 0:
+            pr0[rabi_mask,:] = self.simulator[self.RABI](
+                    t[rabi_mask], 0, 0, wr, we, dwc-wo, an, T2inv
+                )
+        if ramsey_mask.sum() > 0:
+            pr0[ramsey_mask,:] = self.simulator[self.RAMSEY](
+                    t[ramsey_mask], tau[ramsey_mask], phi[ramsey_mask], wr, we, dwc-wo, an, T2inv
+                )
+        return pr0.T
             
     
     #@MemoizeLikelihood
@@ -540,32 +516,58 @@ class RabiRamseyModel(qi.FiniteOutcomeModel, qi.DifferentiableModel):
         Returns the likelihood of measuring |0> under a projective
         measurement.
         """
-        pr0 = self._simulated_probs(modelparams, expparams, return_grad=False)
+        pr0 = self._simulated_probs(modelparams, expparams)
         return qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0)
         
+    def grad(self, outcomes, modelparams, expparams, return_L=False, d_mps=None, steps=None):
+        """
+        Computes the gradient of the likelihood function with respect to
+        model parameters.
+        
+        :param bool return_L: If true, returns `(grad, L)` where L is the
+            likelihood at the input paramaters.
+        :param np.ndarray d_mps: A list of step sizes to use for each modeparam.
+        :param dict steps: The finite difference scheme, for example, 
+            `{0:-1, 1:1}` for forward difference, or `{-1:0.5, 1:0.5}` 
+            for central difference.
+        """
+        
+        d_mps = 1e-6 * np.ones(self.n_modelparams) if d_mps is None else d_mps
+        steps = [0, 1] if steps is None else steps
+        
+        # compute likelihood at 0 difference, if needed
+        if return_L or 0 in steps:
+            pr0 = self._simulated_probs(modelparams, expparams)
+            
+        # add each term of the finite difference one at a time
+        grad0 = np.zeros((modelparams.size, expparams.size))
+        for idx_step, step in enumerate(steps):
+            if step == 0:
+                grad0 += steps[step] * pr0
+            else:
+                new_mps = modelparams + step * d_mps[np.newaxis, :]
+                grad0 += steps[step] * self._simulated_probs(new_mps, expparams)
+        grad0 /= d_mps[np.newaxis, :]
+        
+        # deal with the dumb outcomes; pr1 = 1-pr0, so just flip sign
+        zero_mask = outcomes == 0
+        grad = np.empty((outcomes.size, modelparams.size, expparams.size))
+        grad[zero_mask,:,:] = grad0
+        grad[np.logical_not(zero_mask),:,:] = -grad0
+        
+        if return_L:
+            return grad, qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0) 
+        else:
+            return grad
+        
     def score(self, outcomes, modelparams, expparams, return_L=False):
-        pr0, grad = self._simulated_probs(modelparams, expparams, return_grad=True)
-        prs = qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0)
-        signs = np.ones((1,outcomes.shape[0],1,1))
-        signs[0,outcomes==1,0,0] = -1
-        score = signs * grad[:,np.newaxis,:,:] / prs[np.newaxis,:,:,:]
+        grad, prs = self.grad(outcomes, modelparams, expparams, return_L=True)
+        score = grad / prs[np.newaxis,:,:,:]
         
         if return_L:
             return score, prs 
         else:
             return score
-            
-    def grad(self, outcomes, modelparams, expparams, return_L=False):
-        pr0, grad = self._simulated_probs(modelparams, expparams, return_grad=True)
-        prs = qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0)
-        signs = np.ones((1,outcomes.shape[0],1,1))
-        signs[0,outcomes==1,0,0] = -1
-        grad = signs * grad[:,np.newaxis,:,:]
-        
-        if return_L:
-            return grad, prs 
-        else:
-            return grad
 
 class ParallelModel(qi.DirectViewParallelizedModel):
     def grad(self, outcomes, modelparams, expparams, return_L=False):
