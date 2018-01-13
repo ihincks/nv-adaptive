@@ -165,9 +165,9 @@ def rabi_cached(tp, tau, phi, wr, we, dwc, an, T2inv):
     # supergenerator for just nitrogen
     GA = an[:, np.newaxis, np.newaxis] * vecGz(n_models)
 
-    Sm = CachedPropagator(G1 - GA, base_timestep=base_timestep, max_expected_time=.2)
-    S0 = CachedPropagator(G1, base_timestep=base_timestep, max_expected_time=.2)
-    Sp = CachedPropagator(G1 + GA, base_timestep=base_timestep, max_expected_time=.2)
+    Sm = CachedPropagator(G1 - GA, base_timestep=base_timestep, max_expected_time=np.amax(tp))
+    S0 = CachedPropagator(G1, base_timestep=base_timestep, max_expected_time=np.amax(tp))
+    Sp = CachedPropagator(G1 + GA, base_timestep=base_timestep, max_expected_time=np.amax(tp))
 
     pr0 = np.empty((tp.size, wr.size))
     for idx_t, t in enumerate(tp):
@@ -196,12 +196,12 @@ def ramsey_cached(tp, tau, phi, wr, we, dwc, an, T2inv):
     # supergenerator for just nitrogen
     GA = an[:, np.newaxis, np.newaxis] * vecGz(n_models)
     
-    Sm = CachedPropagator(G1 - GA, base_timestep=base_timestep_tau, max_expected_time=4)
-    S0 = CachedPropagator(G1, base_timestep=base_timestep_tau, max_expected_time=4)
-    Sp = CachedPropagator(G1 + GA, base_timestep=base_timestep_tau, max_expected_time=4)
-    Um = CachedPropagator(H1 - HA, base_timestep=base_timestep_tp, max_expected_time=0.1)
-    U0 = CachedPropagator(H1, base_timestep=base_timestep_tp, max_expected_time=0.1)
-    Up = CachedPropagator(H1 + HA, base_timestep=base_timestep_tp, max_expected_time=0.1)
+    Sm = CachedPropagator(G1 - GA, base_timestep=base_timestep_tau, max_expected_time=np.amax(tau))
+    S0 = CachedPropagator(G1, base_timestep=base_timestep_tau, max_expected_time=np.amax(tau))
+    Sp = CachedPropagator(G1 + GA, base_timestep=base_timestep_tau, max_expected_time=np.amax(tau))
+    Um = CachedPropagator(H1 - HA, base_timestep=base_timestep_tp, max_expected_time=np.amax(tp))
+    U0 = CachedPropagator(H1, base_timestep=base_timestep_tp, max_expected_time=np.amax(tp))
+    Up = CachedPropagator(H1 + HA, base_timestep=base_timestep_tp, max_expected_time=np.amax(tp))
     
     pr0 = np.empty((tp.size, wr.size))
     for idx_t in range(tp.size):
@@ -528,32 +528,37 @@ class RabiRamseyModel(qi.FiniteOutcomeModel, qi.DifferentiableModel):
             likelihood at the input paramaters.
         :param np.ndarray d_mps: A list of step sizes to use for each modeparam.
         :param dict steps: The finite difference scheme, for example, 
-            `{0:-1, 1:1}` for forward difference, or `{-1:0.5, 1:0.5}` 
+            `{0:-1, 1:1}` for forward difference, or `{-1:-0.5, 1:0.5}` 
             for central difference.
+            See https://en.wikipedia.org/wiki/Finite_difference_coefficient
         """
         
         d_mps = 1e-6 * np.ones(self.n_modelparams) if d_mps is None else d_mps
-        steps = [0, 1] if steps is None else steps
+        steps = {0:-1,1:1} if steps is None else steps
         
         # compute likelihood at 0 difference, if needed
         if return_L or 0 in steps:
             pr0 = self._simulated_probs(modelparams, expparams)
             
         # add each term of the finite difference one at a time
-        grad0 = np.zeros((modelparams.size, expparams.size))
+        grad0 = np.zeros((self.n_modelparams, modelparams.shape[0], expparams.shape[0]))
+        all_directions = np.diag(d_mps)[:,np.newaxis,:]
         for idx_step, step in enumerate(steps):
             if step == 0:
-                grad0 += steps[step] * pr0
+                grad0 += steps[step] * pr0[np.newaxis, ...]
             else:
-                new_mps = modelparams + step * d_mps[np.newaxis, :]
-                grad0 += steps[step] * self._simulated_probs(new_mps, expparams)
-        grad0 /= d_mps[np.newaxis, :]
+                new_mps = modelparams[np.newaxis,:,:] + step * all_directions
+                new_mps = new_mps.reshape(-1, self.n_modelparams)
+                grad0 += steps[step] * self._simulated_probs(new_mps, expparams).reshape(grad0.shape)
+        grad0 /= d_mps[:, np.newaxis, np.newaxis]
         
         # deal with the dumb outcomes; pr1 = 1-pr0, so just flip sign
         zero_mask = outcomes == 0
-        grad = np.empty((outcomes.size, modelparams.size, expparams.size))
-        grad[zero_mask,:,:] = grad0
-        grad[np.logical_not(zero_mask),:,:] = -grad0
+        grad = np.empty((outcomes.shape[0], self.n_modelparams, modelparams.shape[0], expparams.shape[0]))
+        grad[zero_mask,...] = grad0
+        one_mask = np.logical_not(zero_mask)
+        grad[one_mask,...] = -grad0
+        grad = grad.transpose(1,0,2,3)
         
         if return_L:
             return grad, qi.FiniteOutcomeModel.pr0_to_likelihood_array(outcomes, pr0) 
@@ -570,11 +575,11 @@ class RabiRamseyModel(qi.FiniteOutcomeModel, qi.DifferentiableModel):
             return score
 
 class ParallelModel(qi.DirectViewParallelizedModel):
-    def grad(self, outcomes, modelparams, expparams, return_L=False):
+    def grad(self, outcomes, modelparams, expparams, return_L=False, d_mps=None, steps=None):
        
         @interactive
-        def serial_grad(mps, sm, os, eps, return_L):
-            return sm.grad(os, mps, eps, return_L)
+        def serial_grad(mps, sm, os, eps, return_L, d_mps, steps):
+            return sm.grad(os, mps, eps, return_L=return_L, d_mps=d_mps, steps=steps)
 
         results = self._dv.map_sync(
             serial_grad,
@@ -582,7 +587,9 @@ class ParallelModel(qi.DirectViewParallelizedModel):
             [self.underlying_model] * self.n_engines,
             [outcomes] * self.n_engines,
             [expparams] * self.n_engines,
-            [return_L] * self.n_engines
+            [return_L] * self.n_engines,
+            [d_mps] * self.n_engines,
+            [steps] * self.n_engines
         )
 
         if return_L:
@@ -1133,19 +1140,25 @@ class ReferencedPoissonModel(qi.DerivedModel, qi.DifferentiableModel):
     def score(self, outcomes, modelparams, expparams, return_L):
         raise NotImplemented('We can compute fisher info directly, so skip the score.')
         
-    def fisher_information(self, modelparams, expparams):
+    def fisher_information(self, modelparams, expparams, **kwargs):
         
         n_meas = expparams['n_meas'][np.newaxis, :]
         alpha = n_meas * modelparams[:, -2, np.newaxis]
         beta = n_meas * modelparams[:, -1, np.newaxis]
         
         outcomes = np.array([0])
-        grad, L = self.underlying_model.grad(outcomes, modelparams, expparams, return_L=True)
+        kwargs['return_L'] = True
+        grad, L = self.underlying_model.grad(
+                outcomes, 
+                modelparams[:,:-2], 
+                expparams, 
+                **kwargs
+            )
         
         factor = (alpha - beta)**2 / (beta + L * (alpha - beta))
         fi = grad[:,np.newaxis,:,:] * grad[np.newaxis,:,:]
         fi *= factor[np.newaxis, np.newaxis,:,:]
-        return fi
+        return fi[:,:,0,:,:]
             
 class BridgedRPMUpdater(qi.SMCUpdater):
     """
