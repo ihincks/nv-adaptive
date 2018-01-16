@@ -911,7 +911,7 @@ class ExtendedPrior(qi.Distribution):
                 ref_sample
             ], axis=1)
 
-class ReferencedPoissonModel(qi.DerivedModel, qi.DifferentiableModel):
+class ReferencedPoissonModel(qi.DerivedModel):
     """
     Model whose "true" underlying model is a coin flip, but where the coin is
     only accessible by drawing three poisson random variates, the rate
@@ -919,18 +919,14 @@ class ReferencedPoissonModel(qi.DerivedModel, qi.DifferentiableModel):
     and the linear parameter being the weight of the coin.
     By drawing from all three poisson random variables, information about the
     coin can be extracted, and the rates are thought of as nuisance parameters.
-
     This model is in many ways similar to the :class:`BinomialModel`, in
     particular, it requires the underlying model to have exactly two outcomes.
-
     :param Model underlying_model: The "true" model hidden by poisson random
         variables which set upper and lower references.
-
     Note that new ``modelparam`` fields alpha and beta are
     added by this model. They refer to, respectively, the higher poisson
     rate (corresponding to underlying probability 1)
     and the lower poisson rate (corresponding to underlying probability 0).
-
     Additionally, an exparam field ``mode`` is added.
     This field indicates whether just the signal has been measured (0), the
     bright reference (1), or the dark reference (2).
@@ -942,9 +938,13 @@ class ReferencedPoissonModel(qi.DerivedModel, qi.DifferentiableModel):
     BRIGHT = 1
     DARK = 2
 
-    def __init__(self, underlying_model, dview=None):
-        super(ReferencedPoissonModel, self).__init__(underlying_model)
 
+    def __init__(self, underlying_model, n_outcomes=1000,dview=None):
+
+        super(ReferencedPoissonModel, self).__init__(underlying_model)
+        self.dview = dview
+        self.allow_identical_outcomes = True
+        self._n_outcomes = n_outcomes
         if not (underlying_model.is_n_outcomes_constant and underlying_model.domain(None).n_members == 2):
             raise ValueError("Decorated model must be a two-outcome model.")
 
@@ -989,7 +989,6 @@ class ReferencedPoissonModel(qi.DerivedModel, qi.DifferentiableModel):
         """
         Returns ``True`` if and only if the number of outcomes for each
         experiment is independent of the experiment being performed.
-
         This property is assumed by inference engines to be constant for
         the lifetime of a Model instance.
         """
@@ -1010,30 +1009,13 @@ class ReferencedPoissonModel(qi.DerivedModel, qi.DifferentiableModel):
         modelparams[mask,-1] = avg
         return modelparams
 
-    def n_outcomes(self, expparams):
-        """
-        Returns an array of dtype ``uint`` describing the number of outcomes
-        for each experiment specified by ``expparams``.
-
-        :param numpy.ndarray expparams: Array of experimental parameters. This
-            array must be of dtype agreeing with the ``expparams_dtype``
-            property.
-
-        Note: This is incorrect as there are an infinite number of outcomes.
-        We arbitrarily pick a number.
-        """
-        if expparams is None:
-            return self._domain.n_members
-        return [domain.n_members for domain in self.domain(expparams)]
 
     def domain(self, expparams):
         """
         Returns a list of ``Domain``s, one for each input expparam.
-
         :param numpy.ndarray expparams:  Array of experimental parameters. This
             array must be of dtype agreeing with the ``expparams_dtype``
             property.
-
         :rtype: list of ``Domain``
         """
         return self._domain if expparams is None else [self._domain for ep in expparams]
@@ -1068,21 +1050,25 @@ class ReferencedPoissonModel(qi.DerivedModel, qi.DifferentiableModel):
         gamma = pr0 * alpha + (1 - pr0) * beta
 
         # work out likelihood of these rates for each outcome and return
+        outcome_idxs = (np.s_[:],np.newaxis,np.newaxis) if outcomes.ndim == 1 else (np.s_[:],np.newaxis,np.s_[:])
         if self.dview is None:
-            L = poisson_pdf(outcomes[:,np.newaxis,np.newaxis], gamma[np.newaxis,:,:])
+            L = poisson_pdf(outcomes[outcome_idxs], gamma[np.newaxis,:,:])
         else:
             n_engines = len(self.dview)
             # we are careful to avoid copying arrays, passing only views.
+
             L = np.concatenate(
                 self.dview.map_sync(
                     poisson_pdf,
-                    [outcomes[:,np.newaxis,np.newaxis]] * n_engines,
-                    np.array_split(gamma[np.newaxis,:,:], n_engines, axis=1)
+                    np.array_split(outcomes[outcome_idxs], n_engines, axis=2),
+                    np.array_split(gamma[np.newaxis,:,:], n_engines, axis=2)
                 ),
-                axis=1
+                axis=2
             )
 
+
         assert not np.any(np.isnan(L))
+
         return L
 
     def simulate_experiment(self, modelparams, expparams, repeat=1):
@@ -1118,11 +1104,13 @@ class ReferencedPoissonModel(qi.DerivedModel, qi.DifferentiableModel):
             outcomes = np.random.poisson(gamma, size=(repeat, n_mps, n_eps))
         else:
             n_engines = len(self.dview)
+            split_gamma = np.array_split(gamma, n_engines, axis=0)
+            split_size = [ (repeat,s.shape[0],s.shape[1]) for s in split_gamma]
             outcomes = np.concatenate(
                 self.dview.map_sync(
-                    poisson_rv,
-                    np.array_split(gamma, n_engines, axis=0),
-                    [(repeat, n_mps, n_eps)] * n_engines
+                    np.random.poisson,
+                    split_gamma,
+                    split_size
                 ),
                 axis=1
             )
@@ -1136,7 +1124,15 @@ class ReferencedPoissonModel(qi.DerivedModel, qi.DifferentiableModel):
                 mps, 
                 np.repeat(modelparams[:,-2:,np.newaxis], expparams.shape[0], axis=2)
             ], axis=1)
-            
+
+    def representative_outcomes(self, weights, modelparams, expparams,likelihood_modelparams=None,
+                                likelihood_weights=None):
+        return super(qi.DerivedModel,self).representative_outcomes(weights, modelparams, expparams,
+                                likelihood_modelparams=likelihood_modelparams, likelihood_weights=likelihood_weights)
+
+    def n_outcomes(self,expparams):
+        return self._n_outcomes
+           
     def score(self, outcomes, modelparams, expparams, return_L):
         raise NotImplemented('We can compute fisher info directly, so skip the score.')
         

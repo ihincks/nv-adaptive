@@ -730,7 +730,33 @@ class RiskHeuristic(qi.Heuristic):
         best_idx = np.argmin(risk, axis=0)
         eps = np.array([all_eps[best_idx]])
         return eps
-    
+
+class MCRiskHeuristic(qi.Heuristic):
+    def __init__(self, updater, rabi_eps, ramsey_eps, name=None, dview=None,n_particle_subset=1000):
+        self.updater = updater
+        self._update_risk_particles()
+        self._rabi_eps = rabi_eps
+        self._ramsey_eps = ramsey_eps
+        self.name = "MC Integrated Bayes Risk, Q={}".format(Q) if name is None else name
+        self.risk_history = []
+        
+    def _update_risk_particles(self):
+       # self._risk_taker.particle_locations = self.updater.particle_locations
+       # self._risk_taker.particle_weights = self.updater.particle_weights
+       pass  
+    def __call__(self, tp):
+        ramsey_eps = self._ramsey_eps
+        ramsey_eps['t'] = tp
+        all_eps = np.concatenate([self._rabi_eps, ramsey_eps])
+        
+        self._update_risk_particles()
+        
+        risk = self.updater.bayes_risk(all_eps,n_particle_subset)
+        self.risk_history += [risk]
+        best_idx = np.argmin(risk, axis=0)
+        eps = np.array([all_eps[best_idx]])
+        return eps
+
 class InfoGainHeuristic(qi.Heuristic):
     def __init__(self, updater, rabi_eps, ramsey_eps, name=None, dview=None):
         self.updater = updater
@@ -792,8 +818,8 @@ class LinearHeuristic(qi.Heuristic):
     def __init__(self, updater, max_t=0.3, max_tau=2, n=50, name=None):
         self.updater = updater
         # n_meas should be overwritten by the TrackingHeuristic wrapper
-        self._rabi_eps = rabi_sweep(max_t=1, n=n, n_meas=1000)
-        self._ramsey_eps = ramsey_sweep(max_tau=1, n=n, n_meas=1000)
+        self._rabi_eps = rabi_sweep(max_t=max_t, n=n, n_meas=1000)
+        self._ramsey_eps = ramsey_sweep(max_tau=max_tau, n=n, n_meas=1000)
         
         self._rabi_eps['t'] = np.round(self._rabi_eps['t'] / 0.002) * 0.002
         self._ramsey_eps['tau'] = np.round(self._ramsey_eps['tau'] / 0.002) * 0.002
@@ -986,3 +1012,94 @@ class QPriorRiskHeuristic(RiskHeuristic):
     @property
     def prior_covariance(self):
         return self._prior_covariance
+
+
+
+class FullRiskHeuristic(qi.Heuristic):
+    def __init__(self, updater, Q, rabi_eps, ramsey_eps, name=None, dview=None, subsample_particles=None, n_outcome_samples = 250,
+                    var_fun='simplified',batch=None):
+        self.updater = updater
+        self.updater.model._Q = Q
+
+        if n_outcome_samples is not None:
+            self.updater.model._n_outcomes = n_outcome_samples
+        
+        self.n_particles = updater.n_particles if subsample_particles is None else subsample_particles
+        self._rabi_eps = rabi_eps
+        self._ramsey_eps = ramsey_eps
+        self.name = "Full Bayes Risk, Q={}".format(Q) if name is None else name
+        self.risk_history = []
+        self.var_fun = var_fun
+        self.batch = batch 
+        
+    def __call__(self, tp):
+        ramsey_eps = self._ramsey_eps
+        ramsey_eps['t'] = tp
+        all_eps = np.concatenate([self._rabi_eps, ramsey_eps])
+
+        risk = self.updater.bayes_risk(all_eps,use_cached_samples=True,cache_samples=True,
+                n_particle_subset=self.n_particles,var_fun=self.var_fun,batch=self.batch)
+        self.risk_history += [risk]
+        best_idx = np.argmin(risk, axis=0)
+        eps = np.array([all_eps[best_idx]])
+        return eps
+
+class TrackingFullRiskHeuristic(qi.Heuristic):
+    def __init__(self, updater, Q, rabi_eps, ramsey_eps, name=None, dview=None, subsample_particles=None,
+                 n_outcome_samples = 250,var_fun='simplified',batch=None):
+        self.updater = updater
+        
+        if dview is None:
+            self._ref_model = m.ReferencedPoissonModel(m.RabiRamseyModel())
+        else:
+            self._ref_model = m.ReferencedPoissonModel(
+                    qi.DirectViewParallelizedModel(
+                        m.RabiRamseyModel(),
+                        dview,
+                        serial_threshold=1
+                    ),
+                    dview=dview
+                )
+        self._ref_model._Q = Q
+        self.subsample_particles = subsample_particles
+        self.n_particles = updater.n_particles
+        if n_outcome_samples is not None:
+            self._ref_model._n_outcomes = n_outcome_samples
+
+        self.name = "Tracking Full Bayes Risk, Q={}".format(Q) if name is None else name
+        prior = qi.ProductDistribution(SOME_PRIOR, qi.UniformDistribution([[0,1],[0,1]]))
+        self._risk_taker = qi.SMCUpdater(self._ref_model, self.n_particles, prior, dview=dview)
+        self._risk_taker.particle_locations = self.updater.particle_locations[:,self._risk_taker.model.n_modelparams:]
+        self._risk_taker.particle_weights = self.updater.particle_weights
+
+        self._update_risk_particles()
+        self._rabi_eps = rabi_eps
+        self._ramsey_eps = ramsey_eps
+        
+        self.var_fun = var_fun
+        self.batch = batch 
+        self.risk_history = []
+        
+    def _update_risk_particles(self):
+        n_mps = self._ref_model.n_modelparams
+       
+        locs = self.updater.particle_locations[:,:n_mps]
+        weights = self.updater.particle_weights
+
+        self._risk_taker.particle_locations = locs
+        self._risk_taker.particle_weights = weights
+        
+    def __call__(self, tp):
+        ramsey_eps = self._ramsey_eps
+        ramsey_eps['t'] = tp
+        all_eps = np.concatenate([self._rabi_eps, ramsey_eps])
+        
+        self._update_risk_particles()
+        
+        risk = self._risk_taker.bayes_risk(all_eps,use_cached_samples=True,cache_samples=True,
+                n_particle_subset=self.subsample_particles,var_fun=self.var_fun,batch=self.batch)
+        
+        self.risk_history += [risk]
+        best_idx = np.argmin(risk, axis=0)
+        eps = np.array([all_eps[best_idx]])
+        return eps
