@@ -991,9 +991,14 @@ class TrackingHeuristic(qi.Heuristic):
     def __call__(self, tp):
         if not self.has_initial_reference:
             raise RuntimeError('take_initial_reference must be called before an experiment can be suggested.')
-        eps = self.underlying_heuristic(tp)
-        eps['n_meas'] = self.n_meas
+        n_meas = self.n_meas
         precede_by_tracking = self._decide_on_tracking()
+        if hasattr(self.underlying_heuristic, '_rabi_eps') and hasattr(self.underlying_heuristic, '_ramsey_eps'):
+            # we change this in case the underlying heuristic uses it
+            self.underlying_heuristic._rabi_eps['n_meas'] = n_meas
+            self.underlying_heuristic._ramsey_eps['n_meas'] = n_meas
+        eps = self.underlying_heuristic(tp)
+        eps['n_meas'] = n_meas
         return eps, precede_by_tracking
 
 
@@ -1096,7 +1101,7 @@ class TrackingFullRiskHeuristic(qi.Heuristic):
         
         self._update_risk_particles()
         
-        risk = self._risk_taker.bayes_risk(all_eps,use_cached_samples=True,cache_samples=True,
+        risk = self._risk_taker.bayes_risk(all_eps,use_cached_samples=False,cache_samples=True,
                 n_particle_subset=self.subsample_particles,var_fun=self.var_fun,batch=self.batch)
         
         self.risk_history += [risk]
