@@ -76,7 +76,7 @@ class StructuredFilterNode(qi.SMCUpdater):
         else:
             # peace of mind with all of the recursive functions floating around
             new_weights = copy.copy(new_weights)
-        self._children_weights = new_weights
+        self._child_weights = new_weights
         
     @property
     def children(self):
@@ -434,6 +434,19 @@ class ParticleFilterNode(StructuredFilterLeaf):
         super(ParticleFilterNode, self).__init__(context)
         self._resampler = self.resampler
         self.resample(n_particles=n_particles)      
+
+    def _maybe_resample(self, **kwargs):
+        ess = self.n_ess
+        if ess <= 10:
+            warnings.warn(
+                "Extremely small n_ess encountered ({}). "
+                "Resampling is likely to fail. Consider adding particles, or "
+                "resampling more often.".format(ess),
+                ApproximationWarning
+            )
+        if ess < self.n_particles * self.context.resample_thresh:
+            self.resample()
+            pass
         
     def resample(self, **kwargs):
         # the resampler in SMCUpdater is poorly implemented at the moment,
@@ -765,7 +778,13 @@ class SplittingRule(DiscriminatingNodeOperation):
         node.parent.replace_child(node, model_selector_node)
         
         for n_clusters in node.context.n_clusters_list:
-            if n_clusters > 1:
+            if n_clusters == 1:
+                model_selector_node.add_child(node)
+                if not self._kwargs.has_key('n_particles'):
+                    node.resample(n_particles=node.n_particles, **self._kwargs)
+                else:
+                    node.resample(**self._kwargs)
+            else:
                 cluster_idxs, _ = node.context.clusterer(
                         node.particle_weights, 
                         node.particle_locations, 
@@ -788,12 +807,6 @@ class SplittingRule(DiscriminatingNodeOperation):
                         )
                 mixture_node.reset_weights()
                 model_selector_node.add_child(mixture_node)
-            else:
-                model_selector_node.add_child(node)
-                if not self._kwargs.has_key('n_particles'):
-                    node.resample(n_particles=node.n_particles, **self._kwargs)
-                else:
-                    node.resample(**self._kwargs)
         model_selector_node.reset_weights()
                 
 class ResamplingRule(DiscriminatingNodeOperation):
@@ -822,6 +835,7 @@ class UpdateRule(DiscriminatingNodeOperation):
             # to do this in a depth-first traversal, or else they
             # might not be passed up in accordance to bayes law.
             node_idx = node.parent.get_child_idx(node)
+            import pdb; pdb.set_trace()
             parent_weights = node.parent.child_weights
             parent_weights[node_idx] *= sum(node.child_weights)
             node.parent.reset_weights(parent_weights)
@@ -841,6 +855,7 @@ class GranadeWiebeContext(NodeContext):
         self.floor_weight = 0.1
         self.champion_bayes_factor = 2000
         self.min_n_particles = 1000
+        self.resample_thresh = 0.5
         
         self.clusterer = weighted_kmeans
         
