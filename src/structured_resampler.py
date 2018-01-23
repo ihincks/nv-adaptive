@@ -199,6 +199,7 @@ class StructuredFilterNode(qi.SMCUpdater):
         child_idx = self.get_child_idx(child)
         del self._children[child_idx]
         del self._child_weights[child_idx]
+        child._parent = None
         self.normalize_weights()
         
     def replace_child(self, old_child, new_child):
@@ -211,6 +212,7 @@ class StructuredFilterNode(qi.SMCUpdater):
         old_child_idx = self.get_child_idx(old_child)
         self._children[old_child_idx] = new_child
         new_child._parent = self
+        old_child._parent = None
 
     @property
     def n_children(self):
@@ -742,11 +744,12 @@ class FloorPruningRule(DiscriminatingNodeOperation):
                 
 class OnlyChildPruningRule(DiscriminatingNodeOperation):
     def parent_node_operation(self, node):
-        if node.parent is not None and node.parent.n_children == 1:
+        parent = node.parent
+        if parent is not None and parent.n_children == 1:
             for child in node.children:
-                node.parent.add_child(child)
-            node.parent.remove_child(node)
-            node.parent.reset_weights(node.child_weights)
+                parent.add_child(child)
+            parent.remove_child(node)
+            parent.reset_weights(node.child_weights)
                 
 class SingleChildPruningRule(DiscriminatingNodeOperation):
     def parent_node_operation(self, node):
