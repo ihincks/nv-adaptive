@@ -439,8 +439,8 @@ class ParticleFilterNode(StructuredFilterLeaf):
         # resampler here
         
         # trick self.resample into thinking this function is a qi.Resampler.
-        def resampler_call(model, weights, locations):
-            return self._resampler(model, weights, locations, **kwargs)
+        def resampler_call(model, particle_dist):
+            return self._resampler(model, particle_dist, **kwargs)
         self.resampler = resampler_call
         super(ParticleFilterNode, self).resample()
         self.resampler = self._resampler
@@ -626,7 +626,7 @@ def kmeans_initializer(particle_locations, n_clusters):
         centroids[idx_centroid, :] = particle_locations[new_idx, :]
     return centroids
     
-def weighted_kmeans(particle_weights, particle_locations, n_clusters, max_iterations=100):
+def weighted_kmeans(particle_weights, particle_locations, n_clusters, max_iterations=500):
     n_particles = particle_locations.shape[0]
     n_mps = particle_locations.shape[1]
     centroids = kmeans_initializer(particle_locations, n_clusters)
@@ -760,6 +760,7 @@ class SplittingRule(DiscriminatingNodeOperation):
     def particle_filter_node_operation(self, node):
         model_selector_node = node.context.new_model_selector_node()
         node.parent.replace_child(node, model_selector_node)
+        
         for n_clusters in node.context.n_clusters_list:
             if n_clusters > 1:
                 cluster_idxs, _ = node.context.clusterer(
@@ -786,7 +787,10 @@ class SplittingRule(DiscriminatingNodeOperation):
                 model_selector_node.add_child(mixture_node)
             else:
                 model_selector_node.add_child(node)
-                node.resample(**self._kwargs)
+                if not self._kwargs.has_key('n_particles'):
+                    node.resample(n_particles=node.n_particles, **self._kwargs)
+                else:
+                    node.resample(**self._kwargs)
         model_selector_node.reset_weights()
                 
 class ResamplingRule(DiscriminatingNodeOperation):
