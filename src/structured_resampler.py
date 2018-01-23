@@ -262,7 +262,7 @@ class StructuredFilterNode(qi.SMCUpdater):
         """
         return 1 + sum([child.tree_size for child in self.children])
     
-    def copy_node(self):
+    def copy_node(self, node_class=None):
         """
         Returns a copy of this node; a new instance
         of the same class with the same context. Links to children and parent are
@@ -471,23 +471,25 @@ class NodeOperation(with_metaclass(ABCMeta, object)):
         pass
         
 class DiscriminatingNodeOperation(NodeOperation):
-    def __call__(self, node):
+    def __call__(self, node, *args):
+        result = {}
         if isinstance(node, StructuredFilterParent):
-            self.parent_node_operation(node)
+            result['StructuredFilterParent'] = self.parent_node_operation(node, *args)
         if isinstance(node, ModelSelectorNode):
-            self.model_selector_node_operation(node)
+            result['ModelSelectorNode'] = self.model_selector_node_operation(node, *args)
         if isinstance(node, MixtureNode):
-            self.mixture_node_operation(node)
+            result['MixtureNode'] = self.mixture_node_operation(node, *args)
         if isinstance(node, ParticleFilterNode):
-            self.particle_filter_node_operation(node)
+            result['ParticleFilterNode'] = self.particle_filter_node_operation(node, *args)
+        return result
             
-    def model_selector_node_operation(self, node):
+    def model_selector_node_operation(self, node, *args):
         pass
-    def mixture_node_operation(self, node):
+    def mixture_node_operation(self, node, *args):
         pass
-    def particle_filter_node_operation(self, node):
+    def particle_filter_node_operation(self, node, *args):
         pass
-    def parent_node_operation(self, node):
+    def parent_node_operation(self, node, *args):
         pass
         
 class DecisionTreeRule(DiscriminatingNodeOperation):
@@ -528,7 +530,7 @@ class DecisionTreeRule(DiscriminatingNodeOperation):
                     new_tree_list.append(new_tree)
                     new_weight_list = np.concatenate([
                             new_weight_list, 
-                            np.array([tree_weight * child.weight])
+                            np.atleast_1d([tree_weight * child.weight]).flatten()
                         ])
                 
         new_order = np.argsort(new_weight_list)[::-1]
@@ -547,7 +549,7 @@ class DecisionTreeRule(DiscriminatingNodeOperation):
 ################################################################################
 # TRAVERSING TREES OF NODES
 ################################################################################
-        
+
 class TreeTraversal(with_metaclass(ABCMeta, object)):
     def __init__(self):
         self._node_operations = []
@@ -595,6 +597,37 @@ class BreadthFirstTreeTraversal(TreeTraversal):
             # this superfluous for loop is necessary in python 2
             for x in self.node_iterator(child, first_call=False):
                 yield x
+                
+class ChildRespondingTreeTraversal(TreeTraversal):
+    """
+    Represents a tree-traversal where node operations recieve, as input, 
+    both the node in question and the results of each of their children.
+    """
+        
+    def node_iterator(self, node):
+        raise RuntimeError('This traversal does not use the node iterator pardigm.')
+        
+    def parse_node_operation_results(self, node_operation_results):
+        return node_operation_results[0]
+
+    def __call__(self, root_node, first_call=True):
+        if first_call:
+            root_node.reset_discovered_flags()
+        root_node.discovered_by_traversal = True
+            
+        # recursively collect results from children
+        child_results = [
+            self(node, first_call=False) for node in root_node.children
+        ]
+        
+        # feed these results to each node_operation
+        node_operation_results = [
+            node_operation(root_node, child_results)
+            for node_operation in self.node_operations
+        ]
+        
+        # somehow parse these results into one output
+        return self.parse_node_operation_results(node_operation_results)
             
             
 ################################################################################
@@ -824,22 +857,26 @@ class UpdateRule(DiscriminatingNodeOperation):
         self.outcome = outcome
         self.expparams = expparams
         self.check_for_resample = check_for_resample
-        
-    def particle_filter_node_operation(self, node):
+            
+    def particle_filter_node_operation(self, node, child_results):
         # do a basic update
         node.update(self.outcome, self.expparams, check_for_resample=False)
+        # the total likelihood of the data give the prior is the 
+        # last member of the normalization record.
+        return node.normalization_record[-1]
         
-    def parent_node_operation(self, node):
-        if node.parent is not None:
-            # pass weights back up the tree. Note that it is important
-            # to do this in a depth-first traversal, or else they
-            # might not be passed up in accordance to bayes law.
-            node_idx = node.parent.get_child_idx(node)
-            import pdb; pdb.set_trace()
-            parent_weights = node.parent.child_weights
-            parent_weights[node_idx] *= sum(node.child_weights)
-            node.parent.reset_weights(parent_weights)
-            node.normalize_weights()
+    def parent_node_operation(self, node, child_results):
+        new_child_weights = node.child_weights * np.array(child_results).flatten()
+        node.reset_weights(new_child_weights)
+        node.normalize_weights()
+        return new_child_weights.sum()
+            
+    def __call__(self, node, child_results):
+        result = super(UpdateRule, self).__call__(node, child_results)
+        # we want to always return the total likelihood
+        if result.has_key('StructuredFilterParent'):
+            return result['StructuredFilterParent']
+        return result['ParticleFilterNode']
 
 class GranadeWiebeContext(NodeContext):
     def __init__(self, 
@@ -952,12 +989,15 @@ class StructuredFilter(ModelSelectorNode):
         self._data_record.append(outcome)
         self._just_resampled = False
         
-        traversal = DepthFirstTreeTraversal()
-        traversal.add_node_operation(
+        udpate_traversal = ChildRespondingTreeTraversal()
+        udpate_traversal.add_node_operation(
             UpdateRule(outcome, expparam, check_for_resample=check_for_resample)
         )
         # update all weights: perform the traversal on self; the root node
-        traversal(self)
+        norm = udpate_traversal(self)
+        
+        # the traversal conveniently returns the total likelihood of the given outcome
+        self._normalization_record.append(norm)
         
         # Update the particle locations according to the model's timestep.
         self.particle_locations = self.model.update_timestep(
