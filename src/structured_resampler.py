@@ -19,7 +19,7 @@ class StructuredFilterNode(qi.SMCUpdater):
     
     def __init__(self, context):
         self._children = []
-        self._child_weights = []
+        self._child_weights = np.array([])
         self._parent = None
         self.context = context
         self.discovered_by_traversal = False
@@ -43,8 +43,8 @@ class StructuredFilterNode(qi.SMCUpdater):
         The weight of this node, as stored by its parent's `child_weights`.
         """
         if self.parent is None:
-            return 1
-        return self.parent.child_weights[self.parent.get_child_idx(self)]
+            return np.array(1)
+        return np.asscalar(self.parent.child_weights[self.parent.get_child_idx(self)])
         
     @property
     def total_weight(self):
@@ -53,15 +53,14 @@ class StructuredFilterNode(qi.SMCUpdater):
         this node.
         """
         parent_weight = 1 if self.parent is None else self.parent.total_weight
-        return self.weight * parent_weight
+        return np.asscalar(self.weight * parent_weight)
         
     def normalize_weights(self):
         """
         Normalizes `child_weights` to sum to 1.
         """
-        total_weight = sum(self.child_weights)
-        self._child_weights = \
-            [weight / total_weight for weight in self._child_weights]
+        total_weight = self.child_weights.sum()
+        self._child_weights = self.child_weights / total_weight
         
     def reset_weights(self, new_weights=None):
         """
@@ -75,7 +74,7 @@ class StructuredFilterNode(qi.SMCUpdater):
             new_weights = np.ones(self.n_children) / self.n_children
         else:
             # peace of mind with all of the recursive functions floating around
-            new_weights = copy.copy(new_weights)
+            new_weights = np.atleast_1d(np.array(new_weights)).copy().flatten()
         self._child_weights = new_weights
         
     @property
@@ -173,7 +172,8 @@ class StructuredFilterNode(qi.SMCUpdater):
             called after this value is appended to `child_weights`.
         """
         self._children.append(child)
-        self._child_weights.append(weight)
+        _weight = np.array([weight]).flatten()
+        self._child_weights = np.concatenate([self._child_weights, _weight])
         self.normalize_weights()
         child._parent = self
     
@@ -198,7 +198,7 @@ class StructuredFilterNode(qi.SMCUpdater):
         """
         child_idx = self.get_child_idx(child)
         del self._children[child_idx]
-        del self._child_weights[child_idx]
+        self._child_weights = np.delete(self._child_weights, child_idx)
         child._parent = None
         self.normalize_weights()
         
@@ -778,7 +778,7 @@ class ChampionPruningRule(DiscriminatingNodeOperation):
             strongest_child = node.children[strongest_child_idx]
             weight = node.child_weights[strongest_child_idx]
             if weight / (1 - weight) >= node.context.champion_bayes_factor:
-                for child in range(node.children):
+                for child in node.children:
                     if child is not strongest_child:
                         node.remove_child(child)
                     
@@ -860,7 +860,17 @@ class UpdateRule(DiscriminatingNodeOperation):
             
     def particle_filter_node_operation(self, node, child_results):
         # do a basic update
-        node.update(self.outcome, self.expparams, check_for_resample=False)
+        try:
+            node.update(self.outcome, self.expparams, check_for_resample=False)
+        except RuntimeError:
+            # All weights are zero. We want to delete it, but that will
+            # mess up the recursion. So we set its weight to 0, and pruning
+            # will deal with it later.
+            parent_weights = node.parent.child_weights
+            parent_weights[node.parent.get_child_idx(node)] = 0
+            node.parent.reset_weights(parent_weights)
+            node.parent.normalize_weights()
+            return 0
         # the total likelihood of the data give the prior is the 
         # last member of the normalization record.
         return node.normalization_record[-1]
