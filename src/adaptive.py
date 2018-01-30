@@ -863,11 +863,33 @@ class DataFrameHeuristic(qi.Heuristic):
         self.name = 'DataFrameHeuristic({})'.format(df.heuristic[0])
         self.updater = updater
         
+        self.std_mult = 3
+        n_meas = df.expparam[1]['n_meas']
+        self._initial_bright_mean = df.bright[1] / n_meas
+        self._initial_dark_mean = df.dark[1] / n_meas
+        self._initial_bright_std = np.sqrt(df.bright[1]) / n_meas
+        self._initial_dark_std = np.sqrt(df.dark[1]) / n_meas
+        
     def __call__(self, tp):
         # we purposely start from idx=1, since there is no expparam 
         # at idx=0
         self._idx += 1
         return self.df.expparam[self._idx]
+        
+    def reset_reference_prior(self):
+        dist = qi.ProductDistribution(
+            qi.GammaDistribution(
+                mean=self._initial_bright_mean, 
+                var=(self.std_mult * self._initial_bright_std)**2
+            ),
+            qi.GammaDistribution(
+                mean=self._initial_dark_mean, 
+                var=(self.std_mult * self._initial_dark_std)**2
+            )
+        )
+        samples = dist.sample(self.updater.n_particles)
+        n_mps = self.updater.model.base_model.n_modelparams
+        self.updater.particle_locations[:,n_mps:n_mps+2] = samples
         
 class TrackingHeuristic(qi.Heuristic):
     """
