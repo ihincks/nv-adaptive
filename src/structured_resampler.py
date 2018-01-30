@@ -1292,6 +1292,13 @@ class RAIUpdater(ModelSelectorNode):
     def resample(self, **kwargs):
         for child in self.children:
             child.resample(**kwargs)
+            
+    def update_timestep(self, eps):
+        # usually this is done by the update method
+        assert eps.size == 1
+        self.particle_locations = self.model.update_timestep(
+            self.particle_locations, eps
+        )[:, :, 0]
 
     def update(self, outcome, expparam, check_for_resample=True):
         
@@ -1307,11 +1314,6 @@ class RAIUpdater(ModelSelectorNode):
         
         # the traversal conveniently returns the total likelihood of the given outcome
         self._normalization_record.append(norm)
-        
-        # Update the particle locations according to the model's timestep.
-        self.particle_locations = self.model.update_timestep(
-            self.particle_locations, expparam
-        )[:, :, 0]
 
         # Check if we need to update our min_n_ess attribute.
         if self.n_ess <= self._min_n_ess:
