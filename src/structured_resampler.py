@@ -6,6 +6,7 @@ from abc import abstractmethod, abstractproperty, ABCMeta
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import copy
+from scipy.sparse.csgraph import connected_components
 
 ################################################################################
 # NODES
@@ -317,14 +318,16 @@ class StructuredFilterNode(qi.SMCUpdater):
             )
             
         if not kwargs.has_key('alpha'):
-            kwargs['alpha'] = 10 / self.n_particles
+            kwargs['alpha'] = 0.01
+        if not kwargs.has_key('other_plot_args'):
+            kwargs['other_plot_args'] = {'alpha':0.05}
         
         plt.sca(plt.gca())    
-        plt.scatter(
+        return plt.scatter(
             self.particle_locations[:,idx_param0],
             self.particle_locations[:,idx_param1],
-            s = self.particle_weights / self.particle_weights.max(),
-            **kwargs
+            s = 10 * self.particle_weights / self.particle_weights.max(),
+            **kwargs['other_plot_args']
         )
         
     def plot_tree(self, axis=None):
@@ -370,6 +373,10 @@ class StructuredFilterParent(StructuredFilterNode):
     A class that specializes `StructuredFilterNode` to those nodes which 
     will certainly have children.
     """
+    
+    @property
+    def just_resampled(self):
+        return all([child.just_resampled for child in self.children])
     
     @property
     def x_position(self):
@@ -455,7 +462,14 @@ class ParticleFilterNode(StructuredFilterLeaf):
         
         # trick self.resample into thinking this function is a qi.Resampler.
         def resampler_call(model, particle_dist):
-            return self._resampler(model, particle_dist, **kwargs)
+            if kwargs.has_key('n_particles'):
+                return self._resampler(model, particle_dist, **kwargs)
+            else:
+                return self._resampler(
+                        model, particle_dist, 
+                        n_particles=self.n_particles, 
+                        **kwargs
+                    )
         self.resampler = resampler_call
         super(ParticleFilterNode, self).resample()
         self.resampler = self._resampler
@@ -802,6 +816,22 @@ class SingleChildPruningRule(DiscriminatingNodeOperation):
         if node.parent is not None and node.n_children == 1:
             child = node.children[0]
             node.parent.replace_child(node, child)
+            
+class MergingRule(DiscriminatingNodeOperation):
+    def parent_node_operation(self, node):
+        if node.just_resampled:
+            clusterer = hdbscan.HDBSCAN(
+                    min_cluster_size=500,
+                    allow_single_cluster=True
+                ).fit(node.particle_locations)
+            labels = clusterer.labels_
+            n_clusters = np.unique(labels[labels_ >= 0]).size
+            merged_filter_node = node.context.new_particle_filter_node()
+            merged_filter_node.particle_locations = node.particle_locations
+            merged_filter_node.particle_weights = node.particle_weights
+            for child in node.children():
+                node.remove_child(child)
+            node.add_child(merged_filter_node)
                 
 class SplittingRule(DiscriminatingNodeOperation):
     def __init__(self, **kwargs):
@@ -811,13 +841,7 @@ class SplittingRule(DiscriminatingNodeOperation):
         node.parent.replace_child(node, model_selector_node)
         
         for n_clusters in node.context.n_clusters_list:
-            if n_clusters == 1:
-                model_selector_node.add_child(node)
-                if not self._kwargs.has_key('n_particles'):
-                    node.resample(n_particles=node.n_particles, **self._kwargs)
-                else:
-                    node.resample(**self._kwargs)
-            else:
+            if n_clusters > 1:
                 cluster_idxs, _ = node.context.clusterer(
                         node.particle_weights, 
                         node.particle_locations, 
@@ -825,6 +849,7 @@ class SplittingRule(DiscriminatingNodeOperation):
                     )
                 mixture_node = node.context.new_mixture_node()
                 for n_cluster in range(n_clusters):
+                    # initialize with n_particles=1 to avoid expense of prior sampling
                     filter_node = node.context.new_particle_filter_node()
                     mixture_node.add_child(filter_node)
                     
@@ -838,18 +863,25 @@ class SplittingRule(DiscriminatingNodeOperation):
                             n_particles = n_particles,
                             **self._kwargs
                         )
+                    # override the value of 1 assigned on initialization
+                    filter_node._min_n_ess = n_particles
                 mixture_node.reset_weights()
                 model_selector_node.add_child(mixture_node)
+        if 1 in node.context.n_clusters_list:
+            model_selector_node.add_child(node)
+            node.resample(**self._kwargs)
         model_selector_node.reset_weights()
                 
 class ResamplingRule(DiscriminatingNodeOperation):
-    def __init__(self, splitting_rule):
-        self.splitting_rule = splitting_rule
+    def __init__(self, **resampler_kwargs):
+        self.resampler_kwargs = resampler_kwargs
         
     def particle_filter_node_operation(self, node):
         if node.n_ess < node.n_particles * node.resample_thresh:
             if node.depth < node.context.max_depth:
-                self.splitting_rule(node)
+                SplittingRule(**self.resampler_kwargs)(node)
+            else:
+                node.resample(**self.resampler_kwargs)
                 
         
 class UpdateRule(DiscriminatingNodeOperation):
@@ -924,11 +956,14 @@ class GranadeWiebeContext(NodeContext):
     def new_particle_filter_node(self, n_particles=1):
         particle_filter_node = self.particle_filter_node_class(self)
         particle_filter_node.reset(n_particles)
+        particle_filter_node._just_resampled = True
         return particle_filter_node
 
 class StructuredFilter(ModelSelectorNode):
     def __init__(self, context, make_initial_filter=True):
         self.context = context
+        self._tree_has_changed = True
+        self._decision_tree = None
         super(StructuredFilter, self).__init__(context)
         if make_initial_filter:
             self.reset()
@@ -942,6 +977,7 @@ class StructuredFilter(ModelSelectorNode):
         return new_node
         
     def reset(self, n_particles=None):
+        self._tree_has_changed = True
         for child in self.children:
             self.remove_child(child)
         if n_particles is None:
@@ -965,21 +1001,50 @@ class StructuredFilter(ModelSelectorNode):
         
         return tree_weights, particle_weights_list, particle_locations_list
         
+    def get_decision_tree(self):
+        if self._decision_tree is None or self._tree_has_changed:
+            traversal = BreadthFirstTreeTraversal()
+            decision_tree = DecisionTreeRule()
+            traversal.add_node_operation(decision_tree)
+            # perform the traversal on self; the root node
+            traversal(self)
+            self._decision_tree = decision_tree.weight_list, decision_tree.tree_list
+            self._tree_has_changed = False
+        
+        return self._decision_tree
+        
+    def est_mean(self):
+        _, tree_list = self.get_decision_tree()
+        
+        # the first tree is the most likely one
+        best_tree = tree_list[0]
+        return super(StructuredFilter, best_tree).est_mean()
+        
+    def est_covariance_mtx(self):
+        _, tree_list = self.get_decision_tree()
+        
+        # the first tree is the most likely one
+        best_tree = tree_list[0]
+        return super(StructuredFilter, best_tree).est_covariance_mtx()
+        
     def plot_posterior_marginal(self, idx_param0=0, idx_param1=None, **kwargs):
         
-        traversal = BreadthFirstTreeTraversal()
-        decision_tree = DecisionTreeRule()
-        traversal.add_node_operation(decision_tree)
-        # perform the traversal on self; the root node
-        traversal(self)
+        tree_weights, tree_list = self.get_decision_tree()
         
-        for tree_weight, tree in zip(decision_tree.weight_list, decision_tree.tree_list):
-            super(StructuredFilter, tree).plot_posterior_marginal(
+        for tree_weight, tree in zip(tree_weights[::-1], tree_list[::-1]):
+            latest = super(StructuredFilter, tree).plot_posterior_marginal(
                 idx_param0, idx_param1, **kwargs
             )
+            latest = latest[0] if idx_param1 is None else latest
+            latest.set_label(r"$w=${0:0.2f}".format(tree_weight))
+        
+        legend = plt.legend()
+        for handle in legend.legendHandles: 
+            handle.set_alpha(1)
         
         
     def prune(self):
+        self._tree_has_changed = True
         traversal = BreadthFirstTreeTraversal()
         traversal.add_node_operation(ChampionPruningRule())
         traversal.add_node_operation(FloorPruningRule())
@@ -989,11 +1054,194 @@ class StructuredFilter(ModelSelectorNode):
         traversal(self)
         
     def resample(self, **kwargs):
+        self._tree_has_changed = True
         traversal = BreadthFirstTreeTraversal()
-        traversal.add_node_operation(ResamplingRule(SplittingRule(**kwargs)))
+        traversal.add_node_operation(ResamplingRule())
         # perform the traversal on self; the root node
         traversal(self)
         
+    def update_timestep(self, eps):
+        # usually this is done by the update method
+        assert eps.size == 1
+        self.particle_locations = self.model.update_timestep(
+            self.particle_locations, eps
+        )[:, :, 0]
+        
+    def update(self, outcome, expparam, check_for_resample=True):
+        
+        self._tree_has_changed = True
+        self._data_record.append(outcome)
+        self._just_resampled = False
+        
+        udpate_traversal = ChildRespondingTreeTraversal()
+        udpate_traversal.add_node_operation(
+            UpdateRule(outcome, expparam, check_for_resample=check_for_resample)
+        )
+        # update all weights: perform the traversal on self; the root node
+        norm = udpate_traversal(self)
+        
+        # the traversal conveniently returns the total likelihood of the given outcome
+        self._normalization_record.append(norm)
+
+        # Check if we need to update our min_n_ess attribute.
+        if self.n_ess <= self._min_n_ess:
+            self._min_n_ess = self.n_ess
+        
+        # prune the tree, getting rid of useless branches
+        self.prune()
+        
+        if check_for_resample:
+            self.resample()
+            
+################################################################################
+# REDUNDANT ARRAY OF INDEPENDENT UPDATERS IMPLEMENTATION
+################################################################################
+
+class RAIUContext(NodeContext):
+    def __init__(self, 
+            model, n_nodes, n_particles_per_node, prior,
+            redundancy_rule=None,
+            particle_filter_node_class=ParticleFilterNode,
+            **updater_kwargs
+        ):
+        
+        self.redundancy_rule = BayesFactorRedundancyRule() if redundancy_rule is None else redundancy_rule
+        self.particle_filter_node_class = particle_filter_node_class
+        
+        self.model = model
+        self.n_nodes = n_nodes
+        self.n_particles_per_node = n_particles_per_node
+        self.prior = prior
+        self.updater_kwargs = updater_kwargs
+        
+        
+    def new_particle_filter_node(self):
+        particle_filter_node = self.particle_filter_node_class(self)
+        particle_filter_node.reset(self.n_particles_per_node)
+        particle_filter_node._just_resampled = True
+        particle_filter_node.redistribution_count = 0
+        return particle_filter_node
+
+class RedundancyRule(DiscriminatingNodeOperation):
+    def redistribute_particles(self, node, idxs_replace, idxs_keep):
+        #collect the good particles and weights
+        keep_particles = np.concatenate(
+            [node.children[idx].particle_locations for idx in idxs_keep],
+            axis=0
+        )
+        keep_weights = np.concatenate(
+            [node.child_weights[idx] * node.children[idx].particle_weights 
+            for idx in idxs_keep],
+            axis=0
+        )
+        
+        #resample the bad updaters from the good ones
+        n_particles = node.context.n_particles_per_node
+        for idx in idxs_replace:
+            child = node.children[idx]
+            choices = np.random.choice(n_particles, p=keep_weights)
+            child.particle_locations = keep_particles[choices, :]
+            child.particle_weights = keep_weights[choices]
+            child.redistribution_count += 1
+            
+        good_weights = node.child_weights[idxs_keep]
+        bad_weights = node.child_weights[idxs_replace]
+        child_weights = node.child_weights
+        child_weights[idxs_replace] = bad_weights.sum() * good_weights.mean() / bad_weights.size
+        node.reset_weights(child_weights)
+        node.normalize_weights()
+
+        
+class CredibleRedundancyRule(RedundancyRule):
+    def __init__(self, 
+            n_redundancy_samples=100, 
+            reducancy_credible_level=0.9, 
+            reducancy_threshold=0.4
+        ):
+        self.n_redundancy_samples = n_redundancy_samples
+        self.reducancy_credible_level = reducancy_credible_level
+        self.reducancy_threshold = reducancy_threshold
+        
+    def parent_node_operation(self, node):
+        connection_graph = np.empty((node.n_children, node.n_children))
+        for child1 in node.children:
+            for child2 in node.children:
+                samples = child1.sample(self.n_redundancy_samples)
+                n_in_region = child2.in_credible_region(
+                    samples, 
+                    level=self.reducancy_credible_level
+                )
+                connection_graph[idx1, idx2] = np.mean(n_in_region) > \
+                    self.reducancy_threshold
+                
+        n_components, labels = connected_components(
+            connection_graph, 
+            directed=True,
+            connection='strong',
+            return_labels=True
+        )
+        
+        if n_components == node.n_children:
+            return
+            
+        all_labels = np.unique(labels)
+        max_idx = np.argmax(
+            np.sum(labels[np.newaxis,:] == all_labels[:,np.newaxis], axis=1)
+        )
+        commonest_label = all_labels[max_idx]
+        idxs_keep = labels == commonest_label
+        idxs_replace = np.logical_not(idxs_keep)
+        self.redistribute_particles(node, idxs_replace, idxs_keep)
+        
+        
+class BayesFactorRedundancyRule(RedundancyRule):
+    def __init__(self, bayes_factor_threshold=0.1):
+        self.bayes_factor_threshold = bayes_factor_threshold
+    def parent_node_operation(self, node):
+        bayes_factors = node.child_weights / node.child_weights.max()
+        bad_children = bayes_factors < self.bayes_factor_threshold
+        good_children = np.logical_not(bad_children)
+        idxs_keep = np.arange(node.n_children)[good_children]
+        idxs_replace = np.arange(node.n_children)[bad_children]
+        self.redistribute_particles(node, idxs_replace, idxs_keep)
+        
+        
+            
+class RAIUpdater(ModelSelectorNode):
+    def __init__(self, context):
+        self.context = context
+        super(RAIUpdater, self).__init__(context)
+        self.reset()
+        
+    @property
+    def redistribution_count(self):
+        return sum([child.redistribution_count for child in self.children])
+        
+    def plot_posterior_marginal(self, idx_param0=0, idx_param1=None, **kwargs):
+        
+        for weight, child in zip(self.child_weights, self.children):
+            latest = child.plot_posterior_marginal(
+                idx_param0, idx_param1, **kwargs
+            )
+            latest = latest[0] if idx_param1 is None else latest
+            latest.set_label(r"$w=${0:0.2f}".format(weight))
+        legend = plt.legend()
+        for handle in legend.legendHandles: 
+            handle.set_alpha(1)
+        
+    def reset(self, n_particles=None):
+        for child in tuple(self.children):
+            self.remove_child(child)
+        for idx_node in range(self.context.n_nodes):
+            self.add_child(
+                self.context.new_particle_filter_node()
+            )
+        self.reset_weights()
+        
+    def resample(self, **kwargs):
+        for child in self.children:
+            child.resample(**kwargs)
+
     def update(self, outcome, expparam, check_for_resample=True):
         
         self._data_record.append(outcome)
@@ -1018,13 +1266,9 @@ class StructuredFilter(ModelSelectorNode):
         if self.n_ess <= self._min_n_ess:
             self._min_n_ess = self.n_ess
         
-        # prune the tree, getting rid of useless branches
-        self.prune()
+        # check if any children have gone bad
+        self.context.redundancy_rule(self)
         
         if check_for_resample:
             self.resample()
-
-        
-        
-        
-        
+    
