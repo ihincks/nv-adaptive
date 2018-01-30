@@ -13,6 +13,7 @@ from pandas import DataFrame, Panel, Timestamp, Timedelta, read_pickle, concat
 import wquantiles
 from scipy.interpolate import interp1d
 from adaptive import *
+import structured_resampler as sr
 
 #-------------------------------------------------------------------------------
 # CONSTANTS
@@ -224,11 +225,12 @@ def riffle_dataframes(dfs):
         idx_row += 1
     return new_df
     
-def reprocess_dataframe(df, updater):
+def reprocess_dataframe(df, updater, idx_end=None, drift_tracking=True):
     heuristic = DataFrameHeuristic(updater, df)
     new_df = new_experiment_dataframe(heuristic)
 
-    for idx in range(1,len(df)):
+    idx_end = len(df) if idx_end is None else idx_end
+    for idx in range(1,idx_end):
         result = ExperimentResult(
             df.bright[idx],
             df.dark[idx],
@@ -240,13 +242,15 @@ def reprocess_dataframe(df, updater):
         if 'tp2' not in eps.dtype.fields.keys():
             tp = eps['t']
             eps = np.array(append_fields(eps,'tp2', tp ,dtypes='float'))
-        perform_update(heuristic, eps, result, False)
+        preceded_by_tracking = df.preceded_by_tracking[idx]
+        perform_update(heuristic, eps, result, preceded_by_tracking, drift_tracking)
         new_df = append_experiment_data(
             new_df,
             expparam = eps,
             heuristic=heuristic,
             job=job,
-            heuristic_value=None
+            heuristic_value=None,
+            preceded_by_tracking=preceded_by_tracking
         )
     return new_df
     
@@ -293,6 +297,8 @@ def new_experiment_dataframe(heuristic):
                         this experiment.
     `smc_mean`:         Mean value of updater.
     `smc_cov`:          Covariance matrix of updater.
+    `smc_structure`:    Special column for structured filtering, list of tuples 
+                        of the form `(weight, mean, cov)` for each leaf.
     `smc_n_eff_particles`:    Number of effective particles in updater.
     `smc_upper_quantile`:     Upper 0.95 quantile of the paramaters.
     `smc_lower_quantile`:     Lower 0.95 quantile of the parameters.
@@ -312,6 +318,7 @@ def new_experiment_dataframe(heuristic):
             'eff_num_bits', 'cum_eff_num_bits',
             'heuristic', 'heuristic_value',
             'smc_mean', 'smc_cov', 'smc_n_eff_particles', 'smc_resample_count',
+            'smc_structure',
             'smc_upper_quantile', 'smc_lower_quantile'
         ])
     df = append_experiment_data(df, heuristic=heuristic, preceded_by_tracking=True)
@@ -351,6 +358,11 @@ def append_experiment_data(
     if updater is not None:
         data['smc_mean'] = updater.est_mean()
         data['smc_cov'] = updater.est_covariance_mtx()
+        if isinstance(updater, sr.StructuredFilter):
+            data['smc_structure'] = [
+                (leaf.weight, leaf.est_mean(), leaf.est_covariance_mtx())
+                for leaf in updater.leaves
+            ]
         data['smc_lower_quantile'] = wquantiles.quantile(
             heuristic.updater.particle_locations.T,
             heuristic.updater.particle_weights,
