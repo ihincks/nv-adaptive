@@ -1105,7 +1105,7 @@ class RAIUContext(NodeContext):
             **updater_kwargs
         ):
         
-        self.redundancy_rule = BayesFactorRedundancyRule() if redundancy_rule is None else redundancy_rule
+        self.redundancy_rule = KLDivergenceRedundancyRule() if redundancy_rule is None else redundancy_rule
         self.particle_filter_node_class = particle_filter_node_class
         
         self.model = model
@@ -1191,6 +1191,57 @@ class CredibleRedundancyRule(RedundancyRule):
         commonest_label = all_labels[max_idx]
         idxs_keep = labels == commonest_label
         idxs_replace = np.logical_not(idxs_keep)
+        self.redistribute_particles(node, idxs_replace, idxs_keep)
+
+def symmetric_kl_formula(mean_list, cov_list, scaled=True):
+    n_dist = len(mean_list)
+    
+    cov_inv_list = [np.linalg.inv(cov) for cov in cov_list]
+    
+    result = np.empty((n_dist, n_dist))
+    for idx1 in range(n_dist):
+        for idx2 in range(n_dist):
+            mean_diff = mean_list[idx1] - mean_list[idx2]
+            cov1, cov2 = cov_list[idx1], cov_list[idx2]
+            cov1_inv, cov2_inv = cov_inv_list[idx1], cov_inv_list[idx2]
+            
+            result[idx1, idx2] = (
+                np.trace(np.dot(cov2_inv, cov1) + np.dot(cov1_inv, cov2)) +
+                np.dot(mean_diff, np.dot(cov1_inv + cov2_inv, mean_diff)) - 
+                2 * mean_diff.size
+            ) / 4
+    
+    if scaled:
+        mean_kl = np.mean(result, axis=0)
+        best_cov = cov_list[np.argmin(mean_kl)]
+        result = symmetric_kl_formula(
+            mean_list,
+            [cov / np.sqrt(np.trace(np.dot(best_cov.T, best_cov))) for cov in cov_list],
+            scaled=False
+        )
+    
+    return result
+
+def symmetric_kl(dist_list, scaled=True):
+    return symmetric_kl_formula(
+        [dist.est_mean() for dist in dist_list],
+        [dist.est_covariance_mtx() for dist in dist_list],
+        scaled=scaled
+    )
+        
+class KLDivergenceRedundancyRule(RedundancyRule):
+    def __init__(self, symmetrized_kl_threshold=50):
+        self.symmetrized_kl_threshold = symmetrized_kl_threshold
+        
+    def parent_node_operation(self, node):
+        kl_matrix = symmetric_kl(node.children)
+        # the the average kl between each child and its siblings
+        mean_kls = np.mean(kl_matrix, axis=0)
+        good_idxs = mean_kls < self.symmetrized_kl_threshold
+        bad_idxs = np.logical_not(good_idxs)
+        
+        idxs_keep = np.arange(node.n_children)[good_children]
+        idxs_replace = np.arange(node.n_children)[bad_children]
         self.redistribute_particles(node, idxs_replace, idxs_keep)
         
         
