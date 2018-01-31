@@ -20,7 +20,16 @@
 \newcommand{\MLE}{\text{MLE}}
 \newcommand{\ESM}{\text{ESM}}
 
-\renewcommand{\H}{H}
+\newcommand{\Rabi}{\text{Rabi}}
+\newcommand{\Ramsey}{\text{Ramsey}}
+\newcommand{\te}{t_\text{e}}
+\newcommand{\tp}{t_\text{p}}
+\newcommand{\tw}{t_\text{w}}
+\newcommand{\tm}{t_\text{m}}
+
+\renewcommand{\H}{H}    % hamiltonian
+\renewcommand{\L}{L}    % lindblad dissipator
+\renewcommand{\S}{S}    % superoperator
 \newcommand{\uw}{{\mu\text{w}}}
 
 
@@ -101,7 +110,8 @@ Quantum devices are controlled by some collection of
 classical knobs that adjust various settings 
 such as power levels, timings, input frequencies, and so on.
 We refer to a specific assignment of all of these settings as an
-\textit{experiment configuration}, which we label $\eps$.
+\textit{experiment configuration}, sometimes called the control
+variables, which we label $\eps$.
 Then an \textit{experiment}
 consists of a quantum measurement (or set of quantum measurements) 
 made using these fixed experiment configuration.
@@ -114,8 +124,8 @@ $\eps=(\ldots,t_\text{pulse},\ldots)$.
 An experiment returns a datum $\data$. 
 This might be a photon count
 over a known time interval, a time series of voltages, 
-or a number of `down' strong measurement results out of $N$ repetitions
-of the configuration, and so on.
+or a number of `down' strong measurement results out of $N$ 
+repetitions, and so on.
 
 Generally, the goal of statistical inference is to learn about the parameters
 $\mps$ given a data set $\data_1,\ldots,\data_n$ with respective 
@@ -125,13 +135,16 @@ system---something which connects the model parameters to the experiment
 configurations and data.
 This is done through a likelihood function,
 \begin{equation}
-    \Lhood(\mps;(\data_1,\eps_n),\ldots,(\data_n,\eps_n))
-        = \Pr(\data_1,...,\data_n|\mps,\eps_1,...,\eps_n),
+    \Lhood(\mps;\data_{1:n},\eps_{1:n})
+        = \Pr(\data_{1:n}|\mps,\eps_{1:n}),
 \end{equation} 
 which returns the probability of receiving a given dataset conditioned
 on a hypothetical configuration $\mps$.
-Note that multiple models can be considered and compared if the
-true model is not known, if such a thing even exists.
+Here, and throughout this paper, we use subscripted index-range notation,
+where, for example, $\data_{1:n}=\{\data_1,...,\data_n\}$.
+Note that multiple models can be considered and compared---known
+as model selection---if the
+true model is not known, and if such a thing even exists.
 For quantum systems, these likelihood models come naturally
 through quantum system evolution formulas in conjunction 
 with Born's rule.
@@ -149,28 +162,28 @@ for linear models.
 The MLE is one example of an estimator in a vast literature on estimator theory.
 In this Letter, we limit ourselves to the use of Bayesian inference because of its
 natural integration with online experiments, discussed below.
-In short, in the paradigm of Bayesian inference, one constantly
+In short, in the paradigm of (sequential) Bayesian inference, one constantly
 maintains a state of knowledge about the model parameters $\mps$, encoded
-as a probability distribution $\Pr(\mps)$.
-Upon receiving any piece of data $\data$ under configuration $\eps$,
-our state of knowledge is updated from $\Pr(\mps)$ to $\Pr(\mps|\data,\eps)$
-through Bayes' law:
+as a probability distribution $\pi_n(\mps)=\Pr(\mps|\data_{1:n},\eps_{1:n})$, 
+where $n=1,2,3,...$ indexes the moment in time when the first $n$ data 
+points $\data_{1:n}$ have been collected and processed.
+We write $\pi_0(x)$ to denote the distribution prior to all measurements.
+The update from $\pi_{n-1}$ to $\pi_n$ is done through Bayes' law,
 \begin{equation}
-    \Pr(\mps|\data,\eps)
-        = \frac{\Pr(\data|\mps,\eps)\Pr(\mps)}{\Pr(d)}.
+    \pi_n(\eps)
+        = \frac{
+            \Pr(\data_n|\mps,\eps_n)\pi_{n-1}(\mps)
+        }{
+            \Pr(\data_n|\eps_n)
+        },
 \end{equation}
-In most numerical implementations of this law, the denominator of the 
-right and side comes out in the wash, and we are left with
-\begin{equation}
-    \Pr(\mps|\data,\eps)
-        \propto \Lhood(\mps;\data,\eps)\Pr(\mps),
-\end{equation}
-the product of our prior state of knowledge and the likelihood
-of the hypothetical model parameter value $\mps$.
+so that our knowledge is improved sequentially as each datum arrives.
+Note that this formula is equivalent to 
+$\pi_n(\eps)=\Pr(\data_{1:n}|\mps,\eps_{1:n})\pi_0(\mps)/\Pr(\data_{1:n}|eps_{1:n})$ when expanded with the chain rule of conditional probabilites.
 
 %=============================================================================
-\section{Experiment Design}
-\label{sec:experiment-design}
+\section{Experimental Design}
+\label{sec:experimental-design}
 %=============================================================================
 
 An \textit{experiment design heuristic} is simply a function that 
@@ -181,8 +194,58 @@ otherwise.
 Conventionally, as an example, Rabi curves are generated 
 with offline heuristics, where the next experiment is chosen by 
 increasing the pulse time by a fixed duration in each experiment.
-The number of experiments and pulse time increments are chosen through
-Nyquist considerations.
+The number of experiments and pulse time increments are usually 
+chosen through Nyquist considerations based on prior implicit
+beliefs about the frequencies of the system.
+
+We restrict our online design heuristics to Bayesian designs,
+summarized in the following framework.
+Let $U(\mps,\data,\eps)$ be the utility of collecting the datum
+$\data$ under configuration $\eps$ given the hypothetical
+model parameters $\mps$.
+Then according to our current state of knowledge $\pi_n(\mps)$,
+using the Bayesian maxim of marginalizing over unknown quantities,
+the average utility of observing $\data$ under 
+the possible experiment configuration $\eps$ is
+\begin{align}
+    U(\data,\eps) 
+        &= \int \pi_n(\mps)U(\mps,\data,\eps)\dd\mps.
+\end{align}
+Since we do not know \textit{a priori} which $\data$ will 
+occur (not having performed the experiment yet) the average 
+utility of the possible configuration $\eps$ as a whole is
+\begin{align}
+    U(\eps) 
+        &= \int\Pr(\data|\eps)U(\data,\eps) \dd\data
+\end{align}
+where $\Pr(\data|\eps)=\int \Pr(\data|\mps,\eps)\pi_n(\mps)\dd\mps$.
+From this quantity we can decide on the next experiment as
+the one which maximizes utility,
+\begin{align}
+    \eps_{n+1} = \argmax_\eps U(\eps),
+\end{align}
+with the maximum taken over some space of possible experiments.
+If computed numerically, we might only hope to find local maxima.
+
+One can consider different choices of utility function $U$.
+When the application is inference of a non-linear system, such as 
+ours, it is typical to choose a utility based on 
+mean-squared error.
+In particular, we choose $U=r_Q$ where
+\begin{align}
+    r_Q(\mps,\data,\eps)
+        &= -(\mps - \hat\mps)^\T Q (\mps - \hat\mps)
+\end{align}
+and where $Q$ is a positive semi-definite weighting matrix.
+Here, $\hat{\mps}=\hat{\mps}(\data,\eps)=\int \mps \pi_n(\mps)\dd\mps$
+is the Bayes estimator assuming $\data$ is received.
+In this case, after a bit of rearanging, 
+$r_Q(\eps)$ has the simple interpretation 
+as being the negative expected posterior covariance matrix weighted
+against $Q$,
+\begin{align}
+    r_Q(\eps) = -\Tr Q\expect_\data[\Cov[\mps|\data,\eps]].
+\end{align}
 
 %=============================================================================
 \section{System Model}
@@ -190,21 +253,22 @@ Nyquist considerations.
 %=============================================================================
 
 The quantum system used in our experiment is a nitrogen vacancy (NV) center,
-which is a defect in diamond consisting of a nitrogen adjacent to 
+which is a defect found in diamond consisting of a nitrogen adjacent to 
 a vacant lattice position.
 When in its stable negatively charged configuration, NV$^-$, 
 the vacancy is filled with
 six electrons that form an effective spin-1 particle in the optical
 ground state---this three level subspace comprises the system of interest.
-The eigenstates are labeled $\ket{0}$, $\ket{-1}$, and $\ket{+1}$.
+The eigenstates are labeled $\ket{1}$, $\ket{0}$, and $\ket{-1}$ respectively 
+corresponding to the eigenvalues of the spin-1 operator $\Sz=\diag(1,0,-1)$.
 There is a zero field splitting (ZFS) of $D\approx\SI{2.87}{GHz}$ 
-between $\ket{0}$ and the $\ket{-1},\ket{+1}$ manifold 
+between $\ket{0}$ and the $\operatorname{span}(\ket{-1},\ket{+1})$ manifold 
 that---at low fields ($\lesssim\SI{100}{G}$)---is the dominant energy term,
 defining our $z$-axis.
-The Zeeman splitting between $\ket{-1}$ and $\ket{+1}$ is determined by
-the magnetic field projection onto the $z$-axis, equal to
+The Zeeman splitting between the states $\ket{-1}$ and $\ket{+1}$ 
+is determined by the magnetic field projection onto the $z$-axis, equal to
 $\omega_e=\gamma_e |B_z|$ in the secular approximation, 
-where $\gamma_e=\SI{2.80}{MHz/G}$.
+where $\gamma_e\approx\SI{2.80}{MHz/G}$.
 Spin manipulation is achieved with resonant microwave driving near
 the transitions $D\pm\omega_e$.
 Long coherence times are observed at room temperature, where
@@ -214,21 +278,99 @@ defects are studied in isolation using confocal microscopy.
 In the rotating frame, with the rotating wave and secular approximations,
 the Hamiltonian of the optical ground state is given by
 \begin{align}
-    \H/2\pi &= (D-\omega_\uw)\Sz^2 + (\omega_e+A \Iz)\Sz + \Omega(t)\Sx
+    \H/2\pi &= (D-\omega_\uw)\Sz^2 + (\omega_e+A \Iz)\Sz + \Omega_1(t)\Sx
 \end{align}
 where $(\Sx,\Sy,\Sz)$ are the spin-1 operators, $\omega_\uw$ is the applied
-microwave frequency, $\Omega(t)$ is the microwave drive strength, $A$ is
+microwave frequency, $\Omega_1(t)$ is the microwave drive strength, $A$ is
 the hyperfine splitting  due to the adjacent nitrogen-14 atom, and $\Iz$
 is the nitrogen spin-1 operator along $z$.
 Along with the $T_2^*$ decoherence time which introduces the 
-Lindblad operator $L=\sqrt{1/T_2^*}\Sz$, these parameter are sufficient
-to simulate the experiments we perform.
+Lindblad operator $\L=\sqrt{1/T_2^*}\Sz$, these parameters are sufficient
+to simulate the experiments that we perform.
 Therefore, the model parameters of our spin system are given by
 \begin{align}
-    \mps=(\Omega,\omega_e,A,
+    \mps=(\Omega,\omega_e,\delta D,A,(T_2^*)^{-1})
 \end{align}
+where $\delta D=D-\SI{2.87}{GHz}$ and $\Omega$ is the maximum possible
+value that $\Omega_1(t)$ can take.
+
+For our purposes, an experiment is fully specified as
+\begin{align}
+    \eps=(a(t), \omega_\uw, N)
+\end{align}
+where $a(t):[0,\te]\rightarrow [-1,1]$ is the 
+unitless pulse profile yielding $\Omega(t)=a(t)\Omega_0$,
+$\omega_\uw$ is the applied microwave frequency,
+and $N$ is the number of repetitions of this experiment\footnote{The
+experiment configuration must also specify value for each timing
+found in \autoref{fig:experiment-pulse-sequences}, but as they are
+calibrated independently from the experiment of interest, we omit
+them here for simplicity.}.
+We further restrict our attention to only two types of
+simple experiments, depicted in \autoref{fig:experiment-pulse-sequences},
+given by
+\begin{enumerate}
+    \item Rabi experiments, $\eps_\Rabi=(\tp,\omega_\uw, N)$, 
+    $a(t)=1$ for all $0\leq t\leq \te=\tp$; and
+    \item Ramsey experiments, $\eps_\Ramsey=(\tp,\tw,\omega_\uw, N)$, 
+    \begin{equation*}
+        a(t)=\begin{cases}
+            0 & \tp<t<\tp+\tw\\
+            1 & \text{else}
+        \end{cases}
+    \end{equation*}
+    for all $0\leq t\leq \te=2\tp+\tw$.
+\end{enumerate}
+
+Given a hypothetical set of model parameters $\mps$ and 
+an experiment configuration $\eps$, the super operator
+(in column-stacking convention) is given by the solution
+to the GKSL master equation,
+\begin{subequations}
+\begin{align}
+    S(\mps,\eps)
+        &=\mathcal{T}\e^{\int_0^{\te}(C[\H(t)]+D[\L])\dd t} \\
+    C[\H(t)]
+        &=-i(\I\otimes\H(t)-\overline{\H(t)}\otimes\I) \\
+    D[L] 
+        &= \overline{L}\otimes L
+            -(\I\otimes L^\dagger L + \overline{L^\dagger L}\otimes \I) / 2
+\end{align}
+\end{subequations}
+where $\mathcal{T}$ is Dyson's time ordering symbol.
+This leads to the measurement probability
+\begin{align}
+    p(\mps,\eps)
+        &=  \dbra{P_0} \S(\mps,\eps)\dket{\rho_0}
+\end{align}
+where our initial state is $\rho_0=\ketbra{0}\otimes\I/3$
+and the measurement projector is $P_0=3\rho_0$.
 
 
+\begin{figure}[t]
+    \includegraphics[width=\textwidth]{\figurefolder/experiment-pulse-sequences}
+    \caption{Pulse timing diagrams for Rabi (top) and Ramsey 
+        (bottom) experiments. An experiment has three control lines:
+        whether the laser is on or off, whether the APD is counting 
+        photons or not, and the microwave amplitude profile.
+        The pulse sequence is repeated $N$ times, collecting
+        photon counts $(X_i,Y_i,Z_i)$ for $i=1,...,N$ for the bright reference,
+        dark reference, and experiment, respectively, and finally summing them
+        each over $i$ to produce the data point $\data=(X,Y,Z)$.
+        Initial states are prepared by lasing for time $t_\text{r}$
+        and letting the system settle for time $t_\text{s}$.
+        Measurements consist of detecting photons for 
+        durations of length $\tm$ while lasing.
+        The dark reference includes an adiabatic pulse of length 
+        $t_\text{a}$ which effects $\ket{0}\rightarrow\ket{+1}$.
+        The action of interest implements the microwave envelope 
+        $\Omega_1(t)$ of duration $\te$, 
+        which for a Rabi experiment is a square pulse ($\te=\tp$),
+        and for a Ramsey experiment is a delay between two equal
+        length square pulses ($\te=2 \tp+\tw$).
+        }
+    \label{fig:experiment-pulse-sequences}
+\end{figure}
 
 %=============================================================================
 \section{Implementation}

@@ -163,6 +163,7 @@
 \newoperator{im}
 \newcommand{\order}[1]{\mathcal{O}\left({#1}\right)}
 \newoperator{argmin}
+\newoperator{argmax}
 
 % Linear Algerbra
 %--------------------------------------
@@ -175,11 +176,6 @@
 
 \newrm{TVD}
 \newrm{T}
-
-% Quantum
-%--------------------------------------
-
-\newcommand{\ketbra}[1]{\ket{#1}\bra{#1}} % defficiency of braket package
 
 % Numbers and Spaces
 %--------------------------------------
@@ -252,6 +248,17 @@
 \newcommand{\Iy}{\Iop_{\text{y}}}
 \newcommand{\Iz}{\Iop_{\text{z}}}
 \newcommand{\I}{\mathbb{I}}
+
+% Quantum Notation
+%--------------------------------------
+
+\newcommand{\ketbra}[1]{\ket{#1}\bra{#1}}
+
+% regular bra,kets defined in braket package; these are vectorized
+\def\dbra#1{\mathinner{\langle\!\langle{#1}|}}
+\def\dket#1{\mathinner{|{#1}\rangle\!\rangle}}
+\def\dbraket#1{\mathinner{\langle\!\langle{#1}\rangle\!\rangle}}
+
 
 % Small Matrices
 %--------------------------------------
