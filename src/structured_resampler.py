@@ -1134,14 +1134,16 @@ class RedundancyRule(DiscriminatingNodeOperation):
             for idx in idxs_keep],
             axis=0
         )
+        keep_weights /= keep_weights.sum()
         
         #resample the bad updaters from the good ones
         n_particles = node.context.n_particles_per_node
         for idx in idxs_replace:
             child = node.children[idx]
-            choices = np.random.choice(n_particles, p=keep_weights)
+            n_p = child.n_particles
+            choices = np.random.choice(keep_weights.size, size=n_p, p=keep_weights)
             child.particle_locations = keep_particles[choices, :]
-            child.particle_weights = keep_weights[choices]
+            child.particle_weights = np.ones(n_p) / n_p
             child.redistribution_count += 1
             
         good_weights = node.child_weights[idxs_keep]
@@ -1237,12 +1239,14 @@ class KLDivergenceRedundancyRule(RedundancyRule):
         kl_matrix = symmetric_kl(node.children)
         # the the average kl between each child and its siblings
         mean_kls = np.mean(kl_matrix, axis=0)
-        good_idxs = mean_kls < self.symmetrized_kl_threshold
-        bad_idxs = np.logical_not(good_idxs)
+        best_kls = np.amin(mean_kls)
+        good_children = mean_kls - best_kls < self.symmetrized_kl_threshold
+        bad_children = np.logical_not(good_children)
         
         idxs_keep = np.arange(node.n_children)[good_children]
         idxs_replace = np.arange(node.n_children)[bad_children]
-        self.redistribute_particles(node, idxs_replace, idxs_keep)
+        if len(idxs_keep) > 0 :
+            self.redistribute_particles(node, idxs_replace, idxs_keep)
         
         
 class BayesFactorRedundancyRule(RedundancyRule):
