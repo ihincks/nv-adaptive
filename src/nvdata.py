@@ -14,6 +14,7 @@ import wquantiles
 from scipy.interpolate import interp1d
 from adaptive import *
 import structured_resampler as sr
+import os
 
 #-------------------------------------------------------------------------------
 # CONSTANTS
@@ -30,6 +31,18 @@ def get_now():
 def est_std(p, alpha, beta):
     return np.sqrt(p*(p+1)*alpha + (p-1)*(p-2)*beta)/(alpha-beta)
 
+overwrite = True
+def export_figure(fig, name, extensions=['.png', '.pdf']):
+    for ext in extensions:
+        fname = '../fig/' + name + ext
+        if not os.path.isfile(fname):
+            print('Saving {}'.format(fname))
+            fig.savefig(fname)
+        elif overwrite:
+            print('Overwriting {}'.format(fname))
+            fig.savefig(fname)
+        else:
+            print('Skipping {}'.format(fname))
 
 def add_counts_by_unique_expparams(df):
     """
