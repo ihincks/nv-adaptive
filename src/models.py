@@ -1267,3 +1267,106 @@ class BridgedRPMUpdater(qi.SMCUpdater):
             self._maybe_resample()
             
         return int(n_ess)
+        
+        
+class RAIUpdaters(qi.SMCUpdater):
+    """
+    Redundant array of identical updaters. Maintains a number of independent
+    updaters which all have the same prior and update with the same data.
+    If it is detected that the bayes factor for a given updater is inconsistent,
+    then that updater is resampled according to the remaining good ones.
+    
+    :param updater_class: A `qinfer.SMCUpdater`-like class (not instance).
+    :param int n_updaters: The number of independent updaters to use.
+    :param model: A QInfer model.
+    :param int n_particles_per_updater: The number of particles to use in 
+        each updater.
+    :param qinfer.Distirbution prior: The prior to use for each updater.
+    """
+    
+    BAYES_FACTOR_THRESHOLD = 0.01
+    
+    def __init__(self, updater_class, n_updaters, model, n_particles_per_updater, prior, **kwargs):
+        
+        self.n_updaters = n_updaters
+        self.rai_updaters = [
+            updater_class(model, n_particles_per_updater, prior, **kwargs)
+        ]
+        
+        self._normalization_record = []
+        self._log_updater_weights = np.log(np.ones(n_updaters) / n_updaters)
+        self.redistribution_count = 0
+        
+        n_tot_particles = n_updaters * n_particles
+        super(RAIUpdaters, self).__init__(model, n_tot_particles, prior)
+
+    @property
+    def particle_locations(self):
+        return np.concatenate(
+            [updater.particle_locations for updater in self.rai_updaters],
+            axis=0
+        )
+    @particle_locations.setter
+    def particle_locations(self, value):
+        locs_list = np.array_split(value, self.n_updaters, axis=0)
+        for updater, locs in zip(self.rai_updaters, locs_list):
+            updater.particle_locations = locs
+            
+    @property
+    def particle_weights(self):
+        return np.concatenate(
+            [updater.particle_weights for updater in self.rai_updaters],
+            axis=0
+        ) / self.n_updaters
+    @particle_weights.setter
+    def particle_weights(self, value):
+        w_list = np.array_split(value, self.n_updaters, axis=0)
+        for updater, w in zip(self.rai_updaters, w_list):
+            updater.particle_weights = w / w.sum()
+    
+    @property
+    def log_updater_weights(self):
+        return self._log_updater_weights
+        
+    def redistribute_particles(self, idxs_replace, idxs_keep):
+        #collect the good particles and weights
+        keep_particles = np.concatenate(
+            [self.rai_updaters[idx].particle_locations for idx in idxs_keep],
+            axis=0
+        )
+        keep_weights = np.concatenate(
+            [self.rai_updaters[idx].particle_weights for idx in idxs_keep],
+            axis=0
+        ) / len(idxs_keep)
+        
+        #resample the bad updaters from the good ones
+        for idx in idxs_replace:
+            updater = self.rai_updaters[idx]
+            choices = np.random.choice(updater.n_particles, p=keep_weights)
+            updater.particle_locations = keep_particles[choices, :]
+            updater.particle_weights = keep_weights[choices]
+            
+        self.redistribution_count += len(idxs_replace)
+        
+    @property
+    def normalized_bayes_factors(self):
+        return np.exp(self.log_updater_weights - np.amax(self.log_updater_weights))
+            
+    def update(self, outcome, expparams, check_for_resample=True):
+        
+        latest_data_probs = np.empty(self.n_updaters)
+        for idx_u, updater in enumerate(self.rai_updaters):
+            updater.update(outcome, expparams, check_for_resample=check_for_resample)
+            latest_data_probs[idx_u] = np.log(updater.normalization_record[-1])
+            
+        self._normalization_record.append(latest_data_probs)
+        self._log_updater_weights = self.log_updater_weights + latest_data_probs
+            
+        bad_updaters = self.normalized_bayes_factors < RAIUpdaters.BAYES_FACTOR_THRESHOLD
+        idxs_replace = list(np.range(self.n_updaters)[bad_updaters])
+        if len(idxs_replace > 0):
+            idxs_keep = list(set(range(self.n_particles)) - set(idxs_replace))
+            self.redistribute_particles(idxs_replace, idxs_keep)
+            good_avg = np.log(np.exp(self.log_updater_weights).mean())
+            self._log_updater_weights[idxs_replace] = good_avg    
+        
