@@ -1,4 +1,4 @@
-\documentclass[aps,nofootinbib,prl,twocolumn,superscriptaddress]{revtex4}
+\documentclass[aps,nofootinbib,twocolumn,superscriptaddress]{revtex4}
 
 \usepackage[strict]{revquantum}
 
@@ -36,13 +36,15 @@
 % http://tex.stackexchange.com/a/112947/615
 \newcommand{\apxref}[1]{\hyperref[#1]{Appendix~\ref{#1}}}
 
+
+
 %=============================================================================
 % FRONT MATTER
 %=============================================================================
 
 \begin{document}
 
-\title{Adaptive Online Experiment Design with Quantum Systems}
+\title{Online Bayesian Experiment Design with Quantum Systems}
 
 \author{Ian Hincks}
 \affilUWAMath
@@ -69,7 +71,21 @@
 \date{\today}
 
 \begin{abstract}
-    Aliquam maximus sem ut imperdiet pulvinar. Donec ut sagittis metus, vitae congue risus. Vestibulum ut mi pharetra, commodo risus eget, consequat sapien. Integer vulputate dolor nec nisl sodales, quis condimentum nulla mollis. Curabitur molestie lacus eget accumsan elementum. 
+Estimating parameters of quantum systems is usually done by performing 
+a sequence of predetermined experiments and post-processing the data.
+It is known that online design, where the next experiment is based on
+the most up-to-date knowledge about the system, 
+can offer speedups to parameter estimation.
+We apply online Bayesian experiment design a the Nitrogen
+Vacancy in diamond to learn the values of a 
+seven-parameter model describing its Hamiltonian.
+Comparing this to standard pre-determined experiment sweeps, 
+we find that we can obtain error bars on some parameters that 
+are \TODO~ times smaller given the same amount of data.
+This has applications to metrology where making faster measurements
+improves sensitivity.
+The methods that we use are generic and can in principle be 
+applied to any quantum device.
 \end{abstract}
 
 \maketitle
@@ -85,7 +101,9 @@
 \label{sec:intro}
 %=============================================================================
 
- Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque quis tellus in lorem fermentum vehicula. Cras placerat ante arcu, vitae porta felis sodales ac. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Fusce turpis velit, mattis vel lectus nec, aliquam molestie ligula. Nam sollicitudin, urna cursus ultricies molestie, orci metus aliquet odio, vel consectetur augue tortor in neque. Donec posuere diam nec ligula laoreet fringilla. Proin diam dui, hendrerit eu tortor vel, ultrices maximus mi. Phasellus sodales finibus massa nec porttitor. Ut posuere tortor id ante lobortis iaculis at at ex. Phasellus in ligula suscipit, pulvinar est at, mollis est. Fusce rutrum pretium lacus commodo ultricies. In porttitor mi mauris, sollicitudin facilisis neque scelerisque at.
+Quantum devices are great.
+We'd like to make them better.
+Read along to find out how.
 
 %=============================================================================
 \section{Inference of Quantum Devices}
@@ -137,6 +155,7 @@ This is done through a likelihood function,
 \begin{equation}
     \Lhood(\mps;\data_{1:n},\eps_{1:n})
         = \Pr(\data_{1:n}|\mps,\eps_{1:n}),
+    \label{eq:general-likelihood-function}
 \end{equation} 
 which returns the probability of receiving a given dataset conditioned
 on a hypothetical configuration $\mps$.
@@ -191,6 +210,7 @@ determines the next experiment configuration to use.
 We say such a heuristic is \textit{online} if it explicitly uses the current
 state of knowledge to make its choice, and we call it \textit{offline} 
 otherwise.
+An experiment design timing diagram is shown in \autoref{fig:online-timing-diagram}.
 Conventionally, as an example, Rabi curves are generated 
 with offline heuristics, where the next experiment is chosen by 
 increasing the pulse time by a fixed duration in each experiment.
@@ -198,31 +218,42 @@ The number of experiments and pulse time increments are usually
 chosen through Nyquist considerations based on prior implicit
 beliefs about the frequencies of the system.
 
+\begin{figure*}
+    \includegraphics[width=\textwidth]{\figurefolder/online-timing-diagram}
+    \caption{Timing diagram for three rounds of online learning. The role of the
+    experiment design heuristic is to pick the next experiment configuration 
+    $e_{n+1}$, possibly based
+    on the current state of knowledge, $\pi_n(\mps)$, resulting in the
+    new data point $d_{n+1}$. 
+    This choice of experiment be computationally expensive, and is 
+    therefore run concurrently with quantum experiments.}
+    \label{fig:online-timing-diagram}
+\end{figure*}
+
 We restrict our online design heuristics to Bayesian designs,
 summarized in the following framework.
-Let $U(\mps,\data,\eps)$ be the utility of collecting the datum
+Let $U_n(\mps,\data,\eps)$ be the utility of collecting the datum
 $\data$ under configuration $\eps$ given the hypothetical
-model parameters $\mps$.
-Then according to our current state of knowledge $\pi_n(\mps)$,
-using the Bayesian maxim of marginalizing over unknown quantities,
-the average utility of observing $\data$ under 
+model parameters $\mps$ and the current state of knowledge $\pi_n(\mps)$.
+Using the Bayesian maxim of marginalizing over unknown quantities,
+the average utility of observing $\data$ at step $n+1$ under 
 the possible experiment configuration $\eps$ is
 \begin{align}
-    U(\data,\eps) 
+    U_n(\data,\eps) 
         &= \int \pi_n(\mps)U(\mps,\data,\eps)\dd\mps.
 \end{align}
 Since we do not know \textit{a priori} which $\data$ will 
 occur (not having performed the experiment yet) the average 
 utility of the possible configuration $\eps$ as a whole is
 \begin{align}
-    U(\eps) 
+    U_n(\eps) 
         &= \int\Pr(\data|\eps)U(\data,\eps) \dd\data
 \end{align}
 where $\Pr(\data|\eps)=\int \Pr(\data|\mps,\eps)\pi_n(\mps)\dd\mps$.
 From this quantity we can decide on the next experiment as
 the one which maximizes utility,
 \begin{align}
-    \eps_{n+1} = \argmax_\eps U(\eps),
+    \eps_{n+1} = \argmax_\eps U_n(\eps),
 \end{align}
 with the maximum taken over some space of possible experiments.
 If computed numerically, we might only hope to find local maxima.
@@ -231,30 +262,36 @@ One can consider different choices of utility function $U$.
 When the application is inference of a non-linear system, such as 
 ours, it is typical to choose a utility based on 
 mean-squared error.
-In particular, we choose $U=r_Q$ where
+In particular, we choose $U_n=r_{n,Q}$ where
 \begin{align}
-    r_Q(\mps,\data,\eps)
-        &= -(\mps - \hat\mps)^\T Q (\mps - \hat\mps)
+    r_{n,Q}(\mps,\data,\eps)
+        &= -(\mps - \hat\mps_n)^\T Q (\mps - \hat\mps_n)
 \end{align}
 and where $Q$ is a positive semi-definite weighting matrix.
-Here, $\hat{\mps}=\hat{\mps}(\data,\eps)=\int \mps \pi_n(\mps)\dd\mps$
+Here, $\hat{\mps}_n=\hat{\mps}_n(\data,\eps)=\int \mps \pi_n(\mps)\dd\mps$
 is the Bayes estimator assuming $\data$ is received.
 In this case, after a bit of rearanging, 
-$r_Q(\eps)$ has the simple interpretation 
+$r_{n,Q}(\eps)$ has the simple interpretation 
 as being the negative expected posterior covariance matrix weighted
 against $Q$,
 \begin{align}
-    r_Q(\eps) = -\Tr Q\expect_\data[\Cov[\mps|\data,\eps]].
+    r_{n,Q}(\eps) = -\Tr Q\expect_\data[\Cov[\mps|\data,\eps]],
+    \label{eq:bayes-risk}
 \end{align}
+a quantity that we call negative \textit{Bayes risk}.
 
 %=============================================================================
-\section{System Model}
+\section{Nitrogen Vacancy System Model}
 \label{sec:system-model}
 %=============================================================================
 
 The quantum system used in our experiment is a nitrogen vacancy (NV) center,
 which is a defect found in diamond consisting of a nitrogen adjacent to 
 a vacant lattice position.
+Our goal for this section is to explicitly define model parameters, experiment configurations, and a likelihood function for this system.
+Once this is achieved, we will be able to employ sequential 
+Bayesian inference and online experiment design.
+
 When in its stable negatively charged configuration, NV$^-$, 
 the vacancy is filled with
 six electrons that form an effective spin-1 particle in the optical
@@ -287,28 +324,29 @@ is the nitrogen spin-1 operator along $z$.
 Along with the $T_2^*$ decoherence time which introduces the 
 Lindblad operator $\L=\sqrt{1/T_2^*}\Sz$, these parameters are sufficient
 to simulate the experiments that we perform.
-Therefore, the model parameters of our spin system are given by
+Therefore, the model parameters of our spin system (two
+more nuisance parameters will be added later) are given by
 \begin{align}
     \mps=(\Omega,\omega_e,\delta D,A,(T_2^*)^{-1})
 \end{align}
 where $\delta D=D-\SI{2.87}{GHz}$ and $\Omega$ is the maximum possible
 value that $\Omega_1(t)$ can take.
 
-For our purposes, an experiment is fully specified as
+A general experiment configuration is specified by
 \begin{align}
     \eps=(a(t), \omega_\uw, N)
 \end{align}
 where $a(t):[0,\te]\rightarrow [-1,1]$ is the 
-unitless pulse profile yielding $\Omega(t)=a(t)\Omega_0$,
+unitless pulse profile yielding $\Omega_1(t)=a(t)\Omega$,
 $\omega_\uw$ is the applied microwave frequency,
 and $N$ is the number of repetitions of this experiment\footnote{The
-experiment configuration must also specify value for each timing
-found in \autoref{fig:experiment-pulse-sequences}, but as they are
+experiment configuration must also specify value for each of the timings
+labeled in \autoref{fig:experiment-pulse-sequences}, but as they are
 calibrated independently from the experiment of interest, we omit
 them here for simplicity.}.
-We further restrict our attention to only two types of
-simple experiments, depicted in \autoref{fig:experiment-pulse-sequences},
-given by
+In this paper, we restrict our attention to two special
+cases of this general form, depicted in 
+\autoref{fig:experiment-pulse-sequences}, given by
 \begin{enumerate}
     \item Rabi experiments, $\eps_\Rabi=(\tp,\omega_\uw, N)$, 
     $a(t)=1$ for all $0\leq t\leq \te=\tp$; and
@@ -323,7 +361,7 @@ given by
 \end{enumerate}
 
 Given a hypothetical set of model parameters $\mps$ and 
-an experiment configuration $\eps$, the super operator
+an experiment configuration $\eps$, the superoperator
 (in column-stacking convention) is given by the solution
 to the GKSL master equation,
 \begin{subequations}
@@ -338,7 +376,7 @@ to the GKSL master equation,
 \end{align}
 \end{subequations}
 where $\mathcal{T}$ is Dyson's time ordering symbol.
-This leads to the measurement probability
+This results in the measurement probability
 \begin{align}
     p(\mps,\eps)
         &=  \dbra{P_0} \S(\mps,\eps)\dket{\rho_0}
@@ -346,6 +384,44 @@ This leads to the measurement probability
 where our initial state is $\rho_0=\ketbra{0}\otimes\I/3$
 and the measurement projector is $P_0=3\rho_0$.
 
+The standard measurement protocol of the NV system at room
+temperature does not have direct access to strong measurements..
+Instead, the probability $p(\mps,\eps)$ is obstructed by three Poisson
+rates, so that data is in the form of a triple $\data=(X,Y,Z)$
+where
+\begin{subequations}
+\begin{align}
+    X|\alpha
+        & \sim\poissondist(N\alpha) \\
+    Y|\beta
+        & \sim\poissondist(N\beta) \\
+    Z|\mps,\eps,\alpha,\beta
+        & \sim\poissondist(N(\beta+p(\mps,\eps)(\alpha-\beta)))
+\end{align}
+\label{eq:nv-measurement}
+\end{subequations}
+where $\alpha$ and $\beta$ satisfy $0<\beta<\alpha$ and 
+are the number of expected
+photons for the bright and dark references in a single shot with a 
+given measurement duration $\tm$, respectively.
+The values $\alpha$ and $\beta$ are nuisance parameters which we
+must append to our model parameters, giving
+\begin{align}
+    \mps=(\Omega,\omega_e,\delta D,A,(T_2^*)^{-1},\alpha,\beta).
+    \label{eq:nv-model-parameters}
+\end{align}
+
+The likelihood function (see \autoref{eq:general-likelihood-function}) 
+for a single experiment is then given by
+\begin{align}
+    \Lhood(\mps;\data,\eps) 
+        &= f(X,N\alpha)
+            \cdot f(Y, N\beta) \nonumber \\
+            &\quad\quad\times f(Z, N(\beta+p(\mps,\eps)(\alpha-\beta))
+    \label{eq:likelihood-function}
+\end{align}
+where $f$ is the probability mass function of the Poisson distribution,
+$f(Q,\lambda) = \e^{-\lambda}\lambda^Q/Q!$.
 
 \begin{figure}[t]
     \includegraphics[width=\textwidth]{\figurefolder/experiment-pulse-sequences}
@@ -377,41 +453,248 @@ and the measurement projector is $P_0=3\rho_0$.
 \label{sec:implementation}
 %=============================================================================
 
-We implement  \autoref{tab:heuristics}.
+\subsection{Hardware}
 
-\begin{table*}[t]
+\subsection{Numerics and Computation}
+
+For all experiment design heuristics, offline and online, 
+we use the sequential Monte Carlo (SMC\footnote{This is
+sometimes also called sequential importance sampling and resampling (SIS/R)})\citeneed method to numerically compute sequential posteriors
+using the Python library qinfer\cite{granade_qinfer:_2017}.
+In this algorithm, the state of knowledge about the model 
+parameters, $\pi_n(\mps)$, 
+is approximated as a finite list of weighted hypothetical values
+(which are called \textit{particles}),
+\begin{align}
+    \pi_n(\mps) 
+        &= \sum_{i=1}^{K}w_{n,i} \delta(\mps-\mps_{n,i}),
+    \label{eq:particle-approximation}
+\end{align}
+where $w_{n,i}\geq 0$ with $\sum_{i=1}^K w_{n,i}=1$, and where
+$\delta(\cdot)$ is the delta mass distribution centered at $0$.
+The particle-approximated prior, $\pi_0(\mps)$, is generated by 
+sampling $K$ initial particles $\mps_{0,i}$ from the prior distribution
+and setting uniform weights $w_{0,i}=1/K$.
+Given the new datum $\data_{n+1}$ under experiment 
+configuration $\eps_{n+1}$,
+Bayes' update can be implemented with the simple multiplication 
+\begin{align}
+    w_{n+1,i}
+        &\propto w_{n,i}\cdot \Lhood(\mps_{n,i};\data_{n+1},\eps_{n+1})
+    \label{eq:particle-update}
+\end{align}
+which requires $K$ simulations of the quantum system to
+compute the likelihoods (\autoref{eq:likelihood-function}), and where
+the constant of proportionality is chosen so that 
+$\sum_{i=1}^K w_{n+1,i}=1$.
+We use the scheme of Liu and West to resample particle locations, 
+triggered by a threshold in the effective particle count,
+$n_\text{eff}:=1/\sum_{i=1} w_{n,i}^2$.
+We also use the bridged-updating trick discussed in
+Reference~\cite{hincks_statistical_2018}.
+
+Notice that the expensive stage of this algorithm is 
+embarrassingly parallel---simulations under the various
+model parameters $\mps_{n,i}$ can be performed independently.
+All of our processing was run on a desktop computer with simulations
+parallelized over the 12 cores in a pair of Intel Xeon X5675 CPUs.
+In this configuration, our updates took on the order of $2$ seconds
+with $K=30000$\todo{verify}.
+In principle, simulations could instead be run on quantum simulators, 
+as was recently demonstrated\cite{wang_experimental_2017}.
+
+For online heuristics, Bayes risk (\autoref{eq:bayes-risk}) 
+is calculated by noting that the 
+particle approximation turns all integrals, which includes
+expectations and covariances, into finite sums;
+details are discussed in appendix\TODO.
+As seen in \autoref{fig:online-timing-diagram}, these 
+calculations (along with the Bayes updates) are
+performed concurrently with experiments so that they do not 
+add to experiment cost\footnote{Of course, this is only
+possible so long as the experiment repetition count is large 
+enough compared to the parallelized simulation cost. In our setup, at
+our count rates, we landed naturally in this regime with
+a single desktop computer.}.
+This has the side-effect of the next experiment being chosen with
+information that is one cycle out-of-date; however,
+in our simulations we found that this did not have a noticeable
+effect on learning rates.
+A new experiment configuration $\eps_{n+1}$ having been 
+decided, by whatever heuristic, 
+the processing computer sends $\eps_{n+1}$ to the 
+computer which controls experiments.
+The experiment is run, and the datum $\data_{n+1}=(X,Y,Z)$
+is returned to the processing computer.
+
+We use a custom built confocal microscope to isolate an individual
+NV center in bulk diamond.
+All experiments are performed on the same NV center.
+Microwave power is delivered to the defect with a nearby antenna
+Laser light is produced by a continuous-wave \SI{100}{mW} laser
+at \SI{532}{nm}, and switched using a double pass through an
+acousto-optic modulator (Isomet 1250C-84).
+Photons are collected with an avalanche-photo detector (APD; Excelitas SPCM-AQRH)
+Microwaves are transmitted by an antenna of diameter \SI{25}{um} 
+about \SI{100}{um} away from the defect
+
+Experimental configurations are stored as waveforms on an arbitrary waveform generator (Tektronix AWG5002).
+
+\subsection{Effective strong measurements and drift tracking}
+
+The amount of information provided by a measurement of $Z$ (see
+\autoref{eq:nv-measurement}) depends on values 
+of $\alpha$ and $\beta$.
+Their magnitudes, relative contrast, and uncertainty 
+all contribute to this information content.
+We quantify this idea by introducing what we call
+the number of \textit{effective strong measurements} (ESM), 
+$n_\ESM$,
+defined as the number of strong measurements one would
+(hypothetically) have to do to gain the equivalent amount of 
+information about $p(\mps,\eps)$, averaged uniformly over $p\in[0,1]$.
+This works out to
+\begin{align}
+    n_\ESM = \frac{
+            (\hat\alpha-\hat\beta)^2
+        }{
+            3(\hat\alpha+\hat\beta)+2\left(\sigma_\alpha^2+\sigma_\beta^2\right)
+        }.
+\end{align}
+where $\hat\alpha$ and $\hat\beta$ are our current estimates of
+$\alpha$ and $\beta$, and $\sigma_\alpha$ and $\sigma_\beta$ 
+are our standard deviation uncertainties in these estimates.
+See \autoref{apx:effective-strong-measurements} for details.
+We choose the number of repetitions in the next experiment, $N$, 
+such that the expected value of $n_\ESM$ is constant 
+(see \autoref{fig:tracking-example}(b-c)).
+This is especially important for the purpose of our paper,
+which is to compare experiment design heuristics.
+In this way,
+certain heuristics are not artificially improved because
+of favorable lab conditions on a certain day of the week.
+
+The true specific values of the references $\alpha$ and $\beta$ depend 
+not only on the optical dynamics of the quantum system itself,
+but also on the quality of the microscope's alignment.
+As the temperature of the lab changes, for instance, one
+can expect the values of $\alpha$ and $\beta$ to change as well
+as the location of the NV center drifts with respect to the
+focal region of the microscope.
+To account for this, a tracking operation is
+performed periodically, where the focus of microscope is
+repositioned based on a new set of images taken with the microscope.
+
+A model that assumes these reference values are constant 
+in time can lead to inaccurate results or even failure.
+To account for this drift, 
+we append a zero-mean Gaussian random
+walk model on the parameters $\alpha$ and $\beta$ to the static
+model defined in \autoref{sec:system-model}.
+Specifically, we assume that immediately prior to 
+a particle update (\autoref{eq:particle-update}) the reference
+indices of the each model parameter particle
+undergoes a resampling step defined as
+\begin{align}
+    \matrixtwobyone{\alpha_{n,i}}{\beta_{n_i}}
+        &\sim \normaldist\left(
+            \matrixtwobyone{\alpha_{n,i}}{\beta_{n_i}},
+            \Delta t 
+            \matrixtwobytwo{\sigma_\alpha^2}{\sigma_{\alpha,\beta}}{\sigma_{\alpha,\beta}}{\sigma_\beta^2}
+            \right)
+\end{align}
+where $\Delta t$ is the amount of time elapsed since the last
+update.
+The hyper-parameters $\sigma_\alpha$, $\sigma_\beta$, and 
+$\sigma_{\alpha,\beta}$ are treated as unknown, appended to
+the model parameters, co-learned along with the parameters defined
+in \autoref{eq:nv-model-parameters}.
+We use a wide inverse Wishart distribution as the prior with a 
+degrees-of-freedom parameter $\nu=30$ and a scale matrix $\Psi$
+such that the mean value of the prior corresponds to
+$\sigma_\alpha=\sigma_\beta=\sigma_{\alpha,\beta}/0.7=\SI{0.01}{/ms}$.
+When a tracking operation is performed, the distribution of 
+$\alpha$ and $\beta$ is resampled from the prior $\pi_0(\mps)$,
+with all other parameters of the model held fixed.
+We chose to perform tracking operation at the start of each trial,
+and each time our estimate of $\alpha$ dipped below
+our prior estimate of $\alpha$ minus five times the standard
+deviation of our prior for $\alpha$.
+
+
+\begin{figure}
     \centering
-    \begin{tabularx}{\textwidth}{lX}
-        \textbf{Heuristic} & \textbf{Definition} \\
-        \hline \\
-        Alternating Linear &  \\
-        Online Risk
-    \end{tabularx}
-    \caption{Summary of heuristics used in experiments.}
-    \label{tab:heuristics}
-\end{table*}    
+    \includegraphics[width=\textwidth]{\figurefolder/tracking-example}
+    \caption{An NV drift tracking example, where tracking 
+    operations take place at the vertical dashed lines.
+    (a) Sub-poissonian $95\%$ credible regions are shown on top of data
+    normalized against the experiment repetition count, $N$.
+    (b) The repetition count was chosen online to maintain a
+    constant ESM value of $20$, which is plotted in (c).
+    regions are shown. Several hundred trials were searched through
+    to find this extreme example---references are typically
+    quite flat.}
+    \label{fig:tracking-example}
+\end{figure}
 
 %=============================================================================
 \section{Results}
 \label{sec:results}
 %=============================================================================
 
-\begin{figure*}
-    \includegraphics[width=\textwidth]{\figurefolder/online-timing-diagram}
-    \caption{Timing diagram for three rounds of online learning. The role of the
-    experiment design heuristic is to pick the next experiment, possibly based
-    on the current state of knowledge (i.e. probability distribution over parameters
-    of interest). This choice might be computationally expensive, and is 
-    therefore run concurrently with quantum experiments.}
-    \label{fig:online-timing-diagram}
-\end{figure*}
+We implement  \autoref{tab:heuristics}.
+
+\newcommand{\mystrut}{\rule{0pt}{1.5\normalbaselineskip}}
+\begin{table*}[t]
+    \centering
+    \begin{tabularx}{\textwidth}{m{15em}X}
+        \textbf{Heuristic} & \textbf{Definition} \\
+        \hline\mystrut
+        Alternating Linear
+            & Sequential alternation between elements of 
+                the experiment \\ 
+                & sets
+                $E_\Rabi(\SI{500}{ns},100)$ and 
+                $E_\Ramsey(\hat{t}_{\text{p,best}},\SI{2}{us},100)$ \\
+        \hline\mystrut
+        Uniformly Weighted Risk 
+            & $e_{n+1}=\underset{e\in E}{\argmax}\left(r_{n,Q}(e)\right)$
+                where $Q=\diag(1,1,1,1,1,0,0)$ and \\
+                & $E=E_\Rabi(\SI{500}{ns},100)\cup
+                E_\Ramsey(\hat{t}_{\text{p,best}},\SI{2}{us},100)$ \\
+        \hline\mystrut
+        Magnetometry Focused Risk
+            & $e_{n+1}=\underset{e\in E}{\argmax}\left(r_{n,Q}(e)\right)$
+                    where $Q=\diag(0,1,0,0,0,0,0)$ and \\
+                    & $E=E_\Rabi(\SI{500}{ns},100)\cup
+                    E_\Ramsey(\hat{t}_{\text{p,best}},\SI{2}{us},100)$ \\
+        \hline
+    \end{tabularx}
+    \caption{Summary of heuristics used to choose experiments.
+        The best Ramsey tip time is defined by
+        $\hat{t}_{\text{p,best}}=1/(4\hat{\Omega})$ (rounded to the nearest
+        \SI{2}{ns}), where $\hat\Omega$ is the current
+        Bayes estimate of the microwave drive amplitude.
+        $E_\Rabi(t_{\max},m)$ denotes a set of Rabi experiments with pulse 
+        times $\tp=t_{\max}/m,2t_{\max}/m,\ldots,t_{\max}$, and 
+        $E_\Ramsey(\tp, t_{\max},m)$ denotes a set of Ramsey experiments with wait times
+        $\tw=t_{\max}/m,2t_{\max}/m,\ldots,t_{\max}$ and pulse times $\tp$.
+    }
+    \label{tab:heuristics}
+\end{table*}   
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{\figurefolder/heuristic-comparison}
+    \caption{Comparison of heuristics.}
+    \label{fig:heuristic-comparisino}
+\end{figure}
 
 %=============================================================================
 \section{Conclusions}
 \label{sec:conclusions}
 %=============================================================================
 
-Nulla commodo felis a est tincidunt porttitor. Praesent venenatis tellus eget ipsum tempus, sit amet tempus dui venenatis. Sed vel massa fermentum, cursus tellus ultricies, lacinia turpis. Donec rhoncus finibus semper. Pellentesque leo nunc, vehicula id tempor sit amet, tempus non nisi. Aliquam non faucibus nisi, quis dapibus odio. Duis ullamcorper nunc ultricies suscipit aliquam. Phasellus quis molestie eros, nec convallis justo. Integer massa diam, interdum quis diam ut, elementum luctus quam. Nullam interdum orci nec ultricies scelerisque. Praesent eget commodo tortor. In et risus vitae felis mollis hendrerit ut ac lacus. Maecenas congue sollicitudin erat, a eleifend nulla euismod ullamcorper. Nullam accumsan sodales metus. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae; Pellentesque feugiat quam at justo tincidunt euismod. 
 
 %=============================================================================
 % END MATTER

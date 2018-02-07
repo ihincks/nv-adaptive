@@ -82,7 +82,6 @@
 \RequirePackage[english]{babel}
 \RequirePackage{multirow}
 \RequirePackage{tabularx}
-%\usepackage{subfig}
 \usepackage{floatrow}
 \RequirePackage{algpseudocode}
 \RequirePackage{algorithm}
@@ -511,7 +510,8 @@
     \def\algorithmautorefname{Algorithm}%
 }
 \AtBeginDocument{%
-    \def\equationautorefname~#1\null{(#1)\null}%
+    %\def\equationautorefname~#1\null{(#1)\null}%
+    \def\algorithmautorefname{Equation}%
 }
 \AtBeginDocument{%
     \newcommand{\lemmaautorefname}{Lemma}%
