@@ -1,0 +1,15 @@
+name: nvadapt-fullbayes
+dependencies:
+  - python=2.7
+  - jupyter
+  - numpy
+  - scipy
+  - matplotlib
+  - ipyparallel
+  - dill
+  - future
+  - seaborn
+  - pandas
+  - pip:
+    - git+https://github.com/whitewhim2718/python-qinfer.git@e1e5acaa3dda5
+
