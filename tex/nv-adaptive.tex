@@ -1,4 +1,4 @@
-\documentclass[aps,nofootinbib,twocolumn,superscriptaddress]{revtex4}
+  \documentclass[aps,nofootinbib,twocolumn,superscriptaddress]{revtex4}
 
 \usepackage[strict]{revquantum}
 
@@ -45,7 +45,7 @@
 
 \begin{document}
 
-\title{Online Bayesian Experiment Design with Quantum Systems}
+\title{Hamiltonian Learning with Online Bayesian Experiment Design in Practice}
 
 \author{Ian Hincks}
 \affilUWAMath
@@ -80,7 +80,7 @@ the most up-to-date knowledge about the system,
 can offer speedups to parameter estimation.
 We apply online Bayesian experiment design to a Nitrogen
 Vacancy (NV) in diamond to learn the values of a 
-five-parameter model describing its Hamiltonian.
+five-parameter model describing its Hamiltonian and decoherence process.
 Comparing this to standard pre-determined experiment sweeps, 
 we find that we can obtain error bars on some parameters that 
 are \TODO~ times smaller given the same amount of data.
@@ -109,61 +109,69 @@ In the case of quantum processors, knowing system properties
 and error processes is necessary for high quality control.
 If system parameters drift in time, they will 
 need to be periodically recharacterized, which reduces uptime.
-Or, in the case of metrology, certain properties of the system are 
-themselves the quantities of interest, and so more efficient 
+Or, in the case of metrology, certain properties of the quantum 
+system are themselves the quantities of interest, and so more efficient 
 characterization leads to higher sensitivities.
 
 Quantum system characterization is typically done by performing 
 a set of predetermined experiments and subsequently processing 
 statistics of the resulting data.
 While there is nothing wrong with this---and indeed, in some cases,
-this strategy can even be tuned to have optimal performance---it
+this strategy can even be tuned to have near optimal performance
+\cite{chaloner_bayesian_1995,higgins_demonstrating_2009}---it
 has long been known that \textit{online} 
 (also called \textit{adaptive} by some authors)
 experiment design is generally 
-capable of outperforming predetermined experiment sweeps.
+capable of outperforming predetermined experiment sweeps
+\cite{chaloner_bayesian_1995}.
 As its name implies, online experiment design allows the next experiment 
 choice to depend somehow on what has already been done.
 The reason for the advantage is obvious---online 
 experiments can potentially avoid executing experiments that 
-are expected to be uninformative, using information that was 
-not initially available.
+are expected to be uninformative by using information that was 
+initially unavailable.
 
 Online experiment design has a long history in quantum systems.
 Almost five decades ago, it was used to reduce the time required to 
-determine relation rates in NMR spin systems.
-In the context of metrology, specifically phase estimation, 
-there has been a great deal of 
-work done comparing online schemes with predetermined schemes,
-and how they stack against the Heisenberg limit.
-Recently, online design has been applied to speed up state tomography, 
-with quadratic improvements reported.
-
-In virtually all fields,
-Bayesian techniques are becoming increasingly popular, a trend that began 
-with the introduction of MCMC methods, but has been especially pronounced 
-over the past 
-decade or so due to significant advances in numerical methods, lowered
-hardware cost-to-performance ratio, and off-the-shelf software libraries.
-Online Bayesian experiment design, a subset of general online 
-experiment design, operates by using Bayes law to maintain 
-a state of knowledge about system parameters in the form of 
-a probability distribution, choosing future experiments based on this state.
-There has been hesitation in moving to online experiment design for 
-quantum systems, in part because of the obvious increased up-front work,
-and partly too because in many specific applications, careful 
-thought and tuning 
-often render predetermined experiment design with occasional 
-human intervention quite efficient.
-However, as quantum systems scale and increase in complexity, the 
-up-front cost becomes increasingly negligible, and careful
-platform-specific manual tuning becomes difficult and time-consuming.
-We therefore expect 
-that the advantages of general purpose, automatic experiment design for calibration will become essential.
-We envisage Bayesian coprocessors (or eventually quantum-coprocessors) 
-along-side every complex quantum device that maintains a state of affairs,
-and can decide which next set of experiments will best maintain a tight
-description of this state of affairs.
+determine relation rates in NMR spin systems \cite{freeman_adaptive_1972}, 
+and later to speed up inversion recovery $T_1$ measurements
+\cite{taitelbaum_two-stage_1993}.
+In recent decades, it has been studied extensively, both in theory
+and experiment, in the context of quantum phase estimation
+\cite{
+    wiseman_adaptive_1995,
+    berry_optimal_2001,
+    higgins_entanglement-free_2007,
+    berry_how_2009,
+    higgins_demonstrating_2009,
+    xiang_entanglement-enhanced_2011,
+    yonezawa_quantum-enhanced_2012,
+    ciampini_quantum-enhanced_2016}
+and quantum state tomography
+\cite{
+    huszar_adaptive_2012,
+    kravtsov_experimental_2013,
+    ferrie_self-guided_2014,
+    stenberg_adaptive_2015,
+    struchalin_experimental_2016,
+    granade_practical_2016,
+    qi_adaptive_2017}.
+Online experiment design has been considered for use
+with randomized benchmarking experiments\cite{granade_accelerated_2015},
+and though centered around control rather than inference, adaptive steps
+to generate control pulses for quantum systems have been proposed
+\cite{egger_adaptive_2014,ferrie_robust_2015,rol_restless_2017}.
+In line with the present work, online experiment design has also been 
+studied to improve quantum Hamiltonian estimation
+\cite{
+    sergeevich_characterization_2011,
+    granade_robust_2012,
+    ferrie_how_2013,
+    wiebe_hamiltonian_2014,
+    stenberg_simultaneous_2016,
+    stenberg_characterization_2016}, 
+where a Hamiltonian form (or set of forms) is specified, and 
+unknown coefficients of Hamiltonian terms are sought.
 
 As a step toward this goal, the present work, 
 carrying on from the proposal of Reference~, 
@@ -265,7 +273,7 @@ a linearized model) since it is exactly equal to the MLE
 for linear models.
 
 The MLE is one example of an estimator in a vast literature on estimator theory.
-In this Letter, we limit ourselves to the use of Bayesian inference because of its
+In the present work, we limit ourselves to the use of Bayesian inference because of its
 natural integration with online experiments, discussed below.
 In short, in the paradigm of (sequential) Bayesian inference, one constantly
 maintains a state of knowledge about the model parameters $\mps$, encoded
@@ -284,7 +292,7 @@ The update from $\pi_{n-1}$ to $\pi_n$ is done through Bayes' law,
 \end{equation}
 so that our knowledge is improved sequentially as each datum arrives.
 Note that this formula is equivalent to 
-$\pi_n(\eps)=\Pr(\data_{1:n}|\mps,\eps_{1:n})\pi_0(\mps)/\Pr(\data_{1:n}|eps_{1:n})$ when expanded with the chain rule of conditional probabilites.
+$\pi_n(\eps)=\Pr(\data_{1:n}|\mps,\eps_{1:n})\pi_0(\mps)/\Pr(\data_{1:n}|\eps_{1:n})$ when expanded with the chain rule of conditional probabilites.
 
 %=============================================================================
 \section{Bayesian Experimental Design}
@@ -306,7 +314,7 @@ beliefs about the frequencies of the system.
 
 \begin{figure*}
     \includegraphics[width=\textwidth]{\figurefolder/online-timing-diagram}
-    \caption{Timing diagram for three rounds of online learning. The role of the
+    \caption{Timing diagram for three rounds of online Bayesian learning. The role of the
     experiment design heuristic is to pick the next experiment configuration 
     $e_{n+1}$, possibly based
     on the current state of knowledge, $\pi_n(\mps)$, resulting in the
@@ -320,24 +328,26 @@ We restrict our online design heuristics to Bayesian designs,
 summarized in the following framework.
 Let $U_n(\mps,\data,\eps)$ be the utility of collecting the datum
 $\data$ under configuration $\eps$ given the hypothetical
-model parameters $\mps$ and the current state of knowledge $\pi_n(\mps)$.
+model parameters $\mps$ and the current state of knowledge $\pi_n(\mps)$,
+where a large value is good.
 Using the Bayesian maxim of marginalizing over unknown quantities,
 the average utility of observing $\data$ at step $n+1$ under 
 the possible experiment configuration $\eps$ is
 \begin{align}
     U_n(\data,\eps) 
-        &= \int \pi_n(\mps)U(\mps,\data,\eps)\dd\mps.
+        &= \int \pi_n(\mps)U_n(\mps,\data,\eps)\dd\mps.
 \end{align}
 Since we do not know \textit{a priori} which $\data$ will 
 occur (not having performed the experiment yet) the average 
 utility of the possible configuration $\eps$ as a whole is
 \begin{align}
     U_n(\eps) 
-        &= \int\Pr(\data|\eps)U(\data,\eps) \dd\data
+        &= \int\Pr(\data|\eps)U_n(\data,\eps) \dd\data
 \end{align}
-where $\Pr(\data|\eps)=\int \Pr(\data|\mps,\eps)\pi_n(\mps)\dd\mps$.
-From this quantity we can decide on the next experiment as
-the one which maximizes utility,
+where $\Pr(\data|\eps)=\int \Pr(\data|\mps,\eps)\pi_n(\mps)\dd\mps$ is the
+predictive distribution.
+Based on this quantity we can choose the next experiment to be
+the one that maximizes utility,
 \begin{align}
     \eps_{n+1} = \argmax_\eps U_n(\eps),
 \end{align}
@@ -346,25 +356,29 @@ If computed numerically, we might only hope to find local maxima.
 
 One can consider different choices of utility function $U$.
 When the application is inference of a non-linear system, such as 
-ours, it is typical to choose a utility based on 
-mean-squared error.
-In particular, we choose $U_n=r_{n,Q}$ where
+ours, it is common to choose a utility based on 
+mean-squared error \cite{chaloner_bayesian_1995}.
+In particular, we choose $U_n=-r_{n,Q}$ where
 \begin{align}
     r_{n,Q}(\mps,\data,\eps)
-        &= -(\mps - \hat\mps_n)^\T Q (\mps - \hat\mps_n)
+        &= (\mps - \hat\mps_{n,\data,\eps})^\T Q (\mps - \hat\mps_{n,\data,\eps})
 \end{align}
-and where $Q$ is a positive semi-definite weighting matrix.
-Here, $\hat{\mps}_n=\hat{\mps}_n(\data,\eps)=\int \mps \pi_n(\mps)\dd\mps$
-is the Bayes estimator assuming $\data$ is received.
-In this case, after a bit of rearanging, 
+with $Q$ is a positive semi-definite weighting matrix.
+Here, $\hat{\mps}_{n,\data,\eps}=\int \mps \tilde{\pi}_{n,\data,\eps}(\mps)\dd\mps$
+is the Bayes estimator of $\mps$ based on the posterior distribution
+$\tilde{\pi}_{n,\data,\eps}(\mps)\propto \Lhood(\mps;\data,\eps)\pi_n(\mps)$
+given hypothetical data $\data$.
+In this case, after a bit of rearranging, 
 $r_{n,Q}(\eps)$ has the simple interpretation 
-as being the negative expected posterior covariance matrix weighted
+of being the expected posterior covariance matrix weighted
 against $Q$,
 \begin{align}
-    r_{n,Q}(\eps) = -\Tr Q\expect_\data[\Cov[\mps|\data,\eps]],
+    r_{n,Q}(\eps) = \Tr Q\expect_\data[\Cov_{\tilde{\pi}}
+        [\mps|\data,\eps]],
     \label{eq:bayes-risk}
 \end{align}
-a quantity that we call negative \textit{Bayes risk}.
+a quantity known as the $Q$-weighted 
+mean-squared-error \textit{Bayes risk}.
 
 %=============================================================================
 \section{Nitrogen Vacancy System Model}
@@ -373,7 +387,7 @@ a quantity that we call negative \textit{Bayes risk}.
 
 The quantum system used in our experiment is a nitrogen vacancy (NV) center,
 which is a defect found in diamond consisting of a nitrogen adjacent to 
-a vacant lattice position.
+a vacant lattice position \cite{doherty_nitrogen-vacancy_2013}.
 Our goal for this section is to explicitly define model parameters, experiment configurations, and a likelihood function for this system.
 Once this is achieved, we will be able to employ sequential 
 Bayesian inference and online experiment design.
@@ -451,7 +465,7 @@ cases of this general form, depicted in
 Given a hypothetical set of model parameters $\mps$ and 
 an experiment configuration $\eps$, the superoperator
 (in column-stacking convention) is given by the solution
-to the GKSL master equation,
+to the Lindlad master equation,
 \begin{subequations}
 \begin{align}
     S(\mps,\eps)
@@ -470,12 +484,14 @@ This results in the measurement probability
 \begin{align}
     p(\mps,\eps)
         &=  \dbra{P_0} \S(\mps,\eps)\dket{\rho_0}
+    \label{eq:born-rule}
 \end{align}
 where our initial state is $\rho_0=\ketbra{0}\otimes\I/3$
 and the measurement projector is $P_0=3\rho_0$.
 
 The standard measurement protocol of the NV system at room
-temperature does not have direct access to strong measurements..
+temperature does not have direct access to strong measurements 
+\cite{hincks_statistical_2018}.
 Instead, the probability $p(\mps,\eps)$ is obstructed by three Poisson
 rates, so that data is in the form of a triple $\data=(X,Y,Z)$
 where
@@ -514,6 +530,7 @@ for a single experiment is then given by
 where $f$ is the probability mass function of the Poisson distribution,
 $f(Q,\lambda) = \e^{-\lambda}\lambda^Q/Q!$.
 
+
 \begin{figure}[t]
     \includegraphics[width=\textwidth]{\figurefolder/experiment-pulse-sequences}
     \caption{Pulse timing diagrams for Rabi (top) and Ramsey 
@@ -529,14 +546,38 @@ $f(Q,\lambda) = \e^{-\lambda}\lambda^Q/Q!$.
         Measurements consist of detecting photons for 
         durations of length $\tm$ while lasing.
         The dark reference includes an adiabatic pulse of length 
-        $t_\text{a}$ which effects $\ket{0}\rightarrow\ket{+1}$.
+        $t_\text{a}$ which causes the state 
+        transfer $\ket{0}\rightarrow\ket{+1}$.
         The action of interest implements the microwave envelope 
-        $\Omega_1(t)$ of duration $\te$, 
-        which for a Rabi experiment is a square pulse ($\te=\tp$),
-        and for a Ramsey experiment is a delay between two equal
-        length square pulses ($\te=2 \tp+\tw$).
+        $\Omega_1(t)$ of duration $\te$.
+        Relative timing is not to scale in this diagram.
         }
     \label{fig:experiment-pulse-sequences}
+\end{figure}
+
+\begin{figure}
+    \includegraphics[width=\textwidth]{\figurefolder/risk-summary}
+    \caption{Calculation of risk for three different prior distributions (rows)
+        and for both Rabi and Ramsey type experiments (columns).
+        The dashed blue lines use a uniform weight matrix $Q=\diag(1,1,1,1,1)$,
+        and the solid orange lines use a weight matrix focused only on $\omega_e$,
+        $Q=\diag(0,1,0,0,0)$.
+        Values have been normalized against $\sigma_Q^2=\Tr(Q\Cov_{\pi}[\mps])$
+        where $\Cov_{\pi}[\mps]$ is the covariance matrix of a prior 
+        distribution $\pi$, 
+        so that, for example, a value of $r_Q(\eps)/\sigma_Q^2=0.95$ for a given 
+        experiment $\eps$
+        implies a $5\%$ expected improvement in weighted covariance.
+        The wide prior (top row) is defined in \autoref{eq:wide-prior}, the
+        calibrated prior (middle row) is defined in \autoref{eq:calibrated-prior}, 
+        and the tight prior (bottom row) is the same as the calibrated prior, but 
+        without widening the $\omega_e$ parameter.
+        Note that the Rabi and Ramsey experiments share a $y$-axis on each row.
+        We see that, among these examples, the only beneficial setting to 
+        perform a Ramsey experiment is with the tight prior when $\omega_e$ 
+        is the parameter of interest.
+        }
+    \label{fig:risk-summary}
 \end{figure}
 
 %=============================================================================
@@ -545,9 +586,9 @@ $f(Q,\lambda) = \e^{-\lambda}\lambda^Q/Q!$.
 %=============================================================================
 
 For all experiment design heuristics, offline and online, 
-we use the sequential Monte Carlo (SMC\footnote{This is
-sometimes also called sequential importance sampling and resampling (SIS/R)})\citeneed method to numerically compute sequential posteriors
-using the Python library qinfer\cite{granade_qinfer:_2017}.
+we use the sequential Monte Carlo (SMC) \cite{doucet_tutorial_2009} 
+method to numerically compute sequential posteriors
+using the Python library \qinfer \cite{granade_qinfer:_2017}.
 In this algorithm, the state of knowledge about the model 
 parameters, $\pi_n(\mps)$, 
 is approximated as a finite list of weighted hypothetical values
@@ -574,9 +615,10 @@ which requires $K$ simulations of the quantum system to
 compute the likelihoods (\autoref{eq:likelihood-function}), and where
 the constant of proportionality is chosen so that 
 $\sum_{i=1}^K w_{n+1,i}=1$.
-We use the scheme of Liu and West to resample particle locations, 
+We use the scheme of Liu and West \cite{liu_combined_2001} 
+to resample particle locations, 
 triggered by a threshold in the effective particle count,
-$n_\text{eff}:=1/\sum_{i=1} w_{n,i}^2$.
+$n_\text{eff}:=1/\sum_{i=1} w_{n,i}^2$ \cite{granade_qinfer:_2017}.
 We also use the bridged-updating trick discussed in
 Reference~\cite{hincks_statistical_2018}.
 
@@ -595,6 +637,8 @@ is calculated by noting that the
 particle approximation turns all integrals, which includes
 expectations and covariances, into finite sums;
 details are discussed in appendix\TODO.
+Some risk calculations for the NV model 
+are plotted in \autoref{fig:risk-summary}.
 As seen in the timing diagram in \autoref{fig:online-timing-diagram}, these 
 calculations (along with the Bayes updates) are
 performed concurrently with experiments so that they do not 
@@ -619,7 +663,7 @@ example, in our experiments, we chose to
 stop after 200 experiments had been performed.
 
 In our setup, the processing computer and the experiment
-computer communicate through over ethernet with TCP.
+computer communicate over ethernet with TCP.
 We use a custom built confocal microscope to isolate an individual
 NV center in bulk diamond.
 All of our experiments were performed on the same NV center.
@@ -748,98 +792,6 @@ deviation of our prior for $\alpha$.
 \label{sec:results}
 %=============================================================================
 
-There are many choices to be made, even for this small system.
-For example, we have already limited ourselves to Rabi and 
-Ramsey experiments.
-Put differently, and given that our free evolution commutes with 
-both our initial state and measurement, 
-we have limited ourselves to bang-bang control
-with a maximum of two pulses.
-This is to ease simulations (bang-bang), and to reduce the
-search space for online heuristics (two pulses or fewer).
-We simplify the situation further by choosing to work in the low field
-regime, say $\lesssim\SI{3}{G}$.
-This saves us from having to adaptively modify the synthesizer 
-frequency $\omega_\uw$; we keep a fixed value of 
-$\omega_\uw=\SI{2.87}{GHz}$ for all experiments.
-It also
-prevents us from having to make decisions about the relative
-phase between the two Ramsey pulses, to which we are
-almost entirely insensitive at low field and with linearly
-polarized microwaves.
-These particular choices are by no means necessary, but serve
-as a starting place to explore the landscape.
-From the perspective of metrology, these choices amount to studying
-the efficiency of DC magnetometry at low field with the NV system.
-
-In our first comparison between experiment design heuristics, 
-we use a wide prior on the Hamiltonian 
-parameters given by
-\begin{subequations}
-\begin{align}
-    \Omega/\si{MHz} 
-        &\sim \uniformdist\left( [0, 20] \right) \\
-    \omega_e/\si{MHz} 
-        &\sim \uniformdist\left( [0, 10] \right) \\
-    \delta D/\si{MHz} 
-        &\sim \uniformdist\left( [-5, 5] \right) \\
-    A/\si{MHz} 
-        &\sim \uniformdist\left( [1.5, 3.5] \right) \\
-    T_2^*/\si{\micro\second} 
-        &\sim \uniformdist\left( [1, 20] \right).
-\end{align}
-\label{eq:wide-prior}
-\end{subequations}
-along with the reference priors discussed in 
-\autoref{sec:esm-and-drift-tracking}.
-We implement the offline \textit{Alternating Linear} and
-online \textit{Uniformly Weighted Risk} heuristics
-defined in \autoref{tab:heuristics}.
-The offline heuristic is motivated by standard DC magnetometry,
-where, intuitively, Rabi experiments are used to determine the pulse length
-that causes $\ket{0}\mapsto\frac{\ket{+1}+\ket{-1}}{\sqrt{2}}$, 
-and Ramsey experiments subsequently exploit  this state
-to measure the relative
-phase accumulation between $\ket{+1}$ and $\ket{-1}$, which is
-proportional to $\tw \omega_e$.
-Note that, uncoventionally, we alternate between Rabi and Ramsey 
-experiments, as was done in \cite{hincks_statistical_2018}.
-This is done to improve numerical stability of the SMC sampler; the
-order in which we do offline experiments does not affect error bars
-as separate experiments are statistically independent.
-Results of this first comparison 
-are shown in \subref{fig:heuristic-comparison}{(a-c)}.
-
-In the context of magnetometry, it is unrealistic to assume such a
-wide prior over all of the parameters.
-More likely, one has already calibrated the device and wants to
-learn only the value of $\omega_e$.
-For example, one might be constructing a magnetic image\citeneed, and each
-pixel of the image requires a new field measurement.
-Therefore, as our second comparison, we place a prior that is tight in all
-Hamiltonian parameters except $\omega_e$, given as
-\begin{subequations}
-\begin{align}
-    \omega_e/\si{MHz} 
-        &\sim \uniformdist\left( [0, 10] \right) \\
-    (\Omega,\delta D,A,(T_2^*)^{-1})/\si{MHz}
-        &\sim \normaldist\left(
-            \mu_\calib,
-            \Sigma_\calib
-        \right),
-\end{align}
-\label{eq:calibrated-prior}
-\end{subequations}
-where $\mu_\calib$ and $\Sigma_\calib$ are taken
-from the posterior of a set of previously run calibration
-experiments, see \autoref{apx:supp-plots-and-data} for
-details.
-The offline heuristic used for this prior consists
-only of Ramsey experiments, since they are the
-\textit{de facto} method for measuring Hamiltonian terms 
-along $z$.
-Results are shown in \subref{fig:heuristic-comparison}{(d-f)}.
-
 \newcommand{\mystrut}{\rule{0pt}{1.5\normalbaselineskip}}
 \begin{table*}[t]
     \centering
@@ -866,7 +818,7 @@ Results are shown in \subref{fig:heuristic-comparison}{(d-f)}.
                 & $E=E_\Rabi(\SI{500}{ns},100)\cup
                 E_\Ramsey(\hat{t}_{\text{p,best}},\SI{2}{us},100)$ \\
         \hline\mystrut
-        Magnetometry Focused Risk
+        Magnetometry Weighted Risk
             & Online;
                     $e_{n+1}=\underset{e\in E}{\argmax}\left(r_{n,Q}(e)\right)$
                     where $Q=\diag(0,1,0,0,0)$ and \\
@@ -889,61 +841,218 @@ Results are shown in \subref{fig:heuristic-comparison}{(d-f)}.
         zeros for reference parameters.
     }
     \label{tab:heuristics}
-\end{table*}   
+\end{table*}  
+
+There are many choices to be made, even for this small system.
+For example, we have already limited ourselves to Rabi and 
+Ramsey experiments.
+Put differently, and given that our free evolution commutes with 
+both our initial state and measurement, 
+we have limited ourselves to bang-bang control
+with a maximum of two pulses.
+This is to ease simulations (bang-bang), and to reduce the
+search space for online heuristics (two pulses or fewer).
+We simplify the situation further by choosing to work in the low field
+regime, say $\lesssim\SI{3}{G}$.
+This saves us from having to adaptively modify the synthesizer 
+frequency $\omega_\uw$; we keep a fixed value of 
+$\omega_\uw=\SI{2.87}{GHz}$ for all experiments.
+It also
+prevents us from having to make decisions about the relative
+phase between the two Ramsey pulses, to which we are
+almost entirely insensitive at low field and with linearly
+polarized microwaves.
+These particular choices are by no means necessary, but serve
+as a starting place to explore the landscape.
+From the perspective of metrology, these choices amount to studying
+the efficiency of DC magnetometry at low field with the NV system using
+the double quantum manifold.
+
+In our first comparison between experiment design heuristics, 
+we use a wide prior on the Hamiltonian 
+parameters given by
+\begin{subequations}
+\begin{align}
+    \Omega/\si{MHz} 
+        &\sim \uniformdist\left( [0, 20] \right) \\
+    \omega_e/\si{MHz} 
+        &\sim \uniformdist\left( [0, 10] \right) \\
+    \delta D/\si{MHz} 
+        &\sim \uniformdist\left( [-5, 5] \right) \\
+    A/\si{MHz} 
+        &\sim \uniformdist\left( [1.5, 3.5] \right) \\
+    T_2^*/\si{\micro\second} 
+        &\sim \uniformdist\left( [1, 20] \right).
+\end{align}
+\label{eq:wide-prior}
+\end{subequations}
+along with the reference priors discussed in 
+\autoref{sec:esm-and-drift-tracking}.
+We implement the offline heuristic \textit{Alternating Linear} and the
+online heuristics \textit{Uniformly Weighted Risk} and
+\textit{Magnetometry Weighted Risk}
+defined in \autoref{tab:heuristics}.
+The offline heuristic is motivated by standard DC magnetometry,
+where, intuitively, Rabi experiments are used to determine the pulse length
+that causes $\ket{0}\mapsto\frac{\ket{+1}+\ket{-1}}{\sqrt{2}}$, 
+and Ramsey experiments subsequently exploit  this superposition state
+to measure the relative
+phase accumulation between $\ket{+1}$ and $\ket{-1}$, which is
+proportional to $\tw \omega_e$.
+Note that, unconventionally, this heuristic alternates between 
+Rabi and Ramsey experiments, as was done in \cite{hincks_statistical_2018}---this improves 
+numerical stability of the SMC sampler; different
+experiments being statistically independent, alternation 
+does not affect the overall information content.
+The two online experiments differ only in the weighting matrix $Q$ that is used---the
+first weights all quantum system parameters equally, and the second projects risk
+onto only one parameter, $\omega_e$.
+
+Results of this first comparison 
+are shown in \subref{fig:heuristic-comparison}{(a-c)}.
+Here, it is seen that both online heuristics outperform the offline heuristic, with a final 
+gap of a bit more than two orders of magnitude in the median (over trials) 
+posterior variance of $\omega_e$ after $4000$ ESM.
+In the histograms we see that the magnetometry focused online heuristic 
+uses almost all Ramsey experiments, and the uniformly weighted online heuristics uses 
+almost all Rabi experiments, which agrees with the risk profiles 
+plotted in \autoref{fig:risk-summary}.
+We see also that the offline heuristic has a much larger spread in posterior 
+variances across trials (area of shaded regions),
+where some trials perform almost as well as the online heuristics, 
+but many perform significantly worse.
+In this sense, in addition to tighter posteriors on average, 
+these online heuristics have the extra advantage of being 
+more reliable.
+Our guess is that offline heuristics require luckily informative data at certain key 
+experiments to perform well, whereas online experiments can simply repeat these key 
+experiments many times to avoid the need for luck.
+Finally, note that the magnetometry focused 
+online heuristic slightly 
+outperforms the evenly weighted online heuristic ---this
+is unsurprising as we happen to be plotting the variance of the magnetometry 
+parameter, $\omega_e$.
+Plots for other parameters can be found in \autoref{apx:supp-plots-and-data}.
+
+In the context of magnetometry, it is unrealistic to assume such a
+wide prior as \autoref{eq:wide-prior}.
+More likely, one has already calibrated the quantum device and wants to
+learn only the value of $\omega_e$.
+For example, one might be constructing a magnetic image
+\cite{
+    maletinsky_robust_2012,
+    grinolds_nanoscale_2013,
+    rondin_stray-field_2013}, 
+and each
+pixel of the image requires a new field measurement.
+Therefore, as our second comparison, we place a prior that is tight in all
+Hamiltonian parameters except $\omega_e$, given as
+\begin{subequations}
+\begin{align}
+    \omega_e/\si{MHz} 
+        &\sim \uniformdist\left( [0, 10] \right) \\
+    (\Omega,\delta D,A,(T_2^*)^{-1})/\si{MHz}
+        &\sim \normaldist\left(
+            \mu_\calib,
+            \Sigma_\calib
+        \right),
+\end{align}
+\label{eq:calibrated-prior}
+\end{subequations}
+where $\mu_\calib$ and $\Sigma_\calib$ are taken
+from the posterior of a set of previously run calibration
+experiments, see \autoref{apx:supp-plots-and-data} for
+details.
+In our study of this second prior, in addition to 
+the three heuristics used above,
+we consider another heuristic called \textit{Ramsey Sweeps} that uses only
+Ramsey experiments, since they are the \textit{de facto} method for 
+measuring static Hamiltonian terms along $z$.
+Results for this second prior 
+are shown in \subref{fig:heuristic-comparison}{(d-f)}.
+There are a few interesting features.
+The first is that it is clearly visible where the \textit{Ramsey Sweeps}
+heuristic finishes one sweep and starts the next, at 2000 ESM.
+The second is that all three of the heuristics that were also used 
+for the wide prior (\autoref{eq:wide-prior}) have significantly
+less spread under the calibrated prior.
+The third is that the magnetometry weighted online heuristic has a much
+clearer advantage over the uniformly weighted online heuristic than in
+the case of the wide prior comparison.
+Finally, notice in the histograms, that the uniformly weighted 
+online heuristic again chooses Rabi experiments almost 
+exclusively.
+
+Our online
+learning rates appear to be at the standard quantum limit (SQL) 
+once transient
+behavior has settled down; the dotted line in \subref{fig:heuristic-comparison}{(d)} guides the eye with the 
+curve $10^{-1.7}\times\text{ESM}^{-1}$.
+The transient behavior prior to the SQL regime 
+looks qualitatively exponential as a function of ESM.
+This does not violate the Heisenberg limit 
+($\sigma^2\propto \text{ESM}^{-2}$) because experiment times,
+$\te$, are able to exponentially increase, too
+ \cite{sergeevich_characterization_2011}.
+Exponential-into-SQL scaling is consistent with previous
+Hamiltonian estimation research, where the coherence time of the system 
+controls the transition location---ideally we would 
+perform Ramsey experiments with arbitrarily long wait times, but 
+finite $T_2^*$ prevents us \cite{ferrie_how_2013}.
 
 \begin{figure*}
     \centering
     \includegraphics[width=\textwidth]{\figurefolder/heuristic-comparison}
     \caption{Comparison of experiment design heuristics 
-    (see \autoref{tab:heuristics}) each heuristic was run
-    independently 100 times.
+    (see \autoref{tab:heuristics}) where each heuristic was run
+    with $100$ independent trials using $200$ experiments per trial.
     The left figures (a-c) use the wide prior of \autoref{eq:wide-prior}, 
     and the right figures (d-f) use the calibrated prior of 
     \autoref{eq:calibrated-prior}.
-    (a) For the parameter $\omega_e$, the median posterior variance 
+    (a,d) For the parameter $\omega_e$, the median posterior variance 
     over 100 trials is plotted (dashed lines), and 
     regions between the $10\%$ and $90\%$ percentiles are shaded.
-    The $x$-axis relates to the total number of experiments performed,
+    The $x$-axes display ESM (effective strong measurements), where
+    roughly $20$ effective bits of data are collected per experiment,
     see \autoref{sec:esm-and-drift-tracking}.
-    In (b-c), histograms of which experiments each heuristic uses are 
-    shown with a shared $y$-axis, totaled over all trials.
-    Here it is seen that the online heuristic prefers certain long Rabi
-    experiments to Ramsey experiments.
-    (d-f) are similar to (a-c), but with a different prior.
+    The black dotted line scales as ESM$^{-1}$.
+    In (b-c,e-f), histograms of which experiments each heuristic uses are 
+    shown, normalized to represent the average number of times 
+    used per trial.
+    Note that the $y$-axis between histograms is shared, that 
+    the scaling switches from linear to logarithmic at $y=5$, and 
+    that all four subfigures contain $100$ histogram bins.
     }
     \label{fig:heuristic-comparison}
 \end{figure*}
-
-\begin{figure}
-    \includegraphics[width=\textwidth]{\figurefolder/risk-summary}
-    \caption{Calculation of risk for three different prior distributions (rows)
-        and for both Rabi and Ramsey type experiments (columns).
-        The dashed blue lines use a uniform weight matrix $Q=\diag(1,1,1,1,1)$,
-        and the solid orange lines use a weight matrix focused only on $\omega_e$,
-        $Q=\diag(0,1,0,0,0)$.
-        Values have been normalized against $\sigma_Q^2=\Tr(Q\Cov_{\pi}[\mps])$
-        where $\Cov_{\pi}[\mps]$ is the covariance matrix of a prior 
-        distribution $\pi$, 
-        so that, for example, a value of $r_Q(\eps)/\sigma_Q^2=0.95$ for a given 
-        experiment $\eps$
-        implies a $5\%$ expected improvement in weighted covariance.
-        The wide prior (top row) is defined in \autoref{eq:wide-prior}, the
-        calibrated prior (middle row) is defined in \autoref{eq:calibrated-prior}, 
-        and the tight prior (bottom row) is the same as the calibrated prior, but 
-        without widening the $\omega_e$ parameter.
-        Note that the Rabi and Ramsey experiments share a $y$-axis on each row.
-        We see that, among these examples, the only beneficial setting to 
-        perform a Ramsey experiment is with the tight prior when $\omega_e$ 
-        is the parameter of interest.
-        }
-    \label{fig:risk-summary}
-\end{figure}
 
 %=============================================================================
 \section{Conclusions}
 \label{sec:conclusions}
 %=============================================================================
 
+
+Generally, more complex systems
+Hyperfine couplings, with model selection
+AC magnetometry schemes
+
+Better searching through experiments (basin hopping, particle swarm[cite wilhelm])
+
+There has been hesitation in moving to online experiment design for 
+quantum systems, in part because of the obvious increased up-front work,
+and partly too because in many specific applications, careful 
+thought and tuning 
+often render predetermined experiment design with occasional 
+human intervention quite efficient.
+However, as quantum systems scale and increase in complexity, the 
+up-front cost becomes increasingly negligible, and careful
+platform-specific manual tuning becomes difficult and time-consuming.
+We therefore expect 
+that the advantages of general purpose, automatic experiment design for calibration will become essential.
+We envisage Bayesian coprocessors (or eventually quantum-coprocessors) 
+along-side every complex quantum device that maintains a state of affairs,
+and can decide which next set of experiments will best maintain a tight
+description of this state of affairs.
 
 %=============================================================================
 % END MATTER
@@ -1024,7 +1133,7 @@ expected number of photons collected (and summed over $N$
 repetitions of the experiment) using the initial NV states
 $\ketbra{0}$ and $\ketbra{1}$, respectively\footnote{They are
 more accurately defined in terms of the pseudo-pure states 
-that are actually created in the NV initialization procedure~\cite{hincks_statistical_2017}.}.
+that are actually created in the NV initialization procedure~\cite{hincks_statistical_2018}.}.
 
 The information content about $p$ of this referenced Poisson model is not
 immediately obvious, 
@@ -1339,7 +1448,7 @@ our model is given by
             - \log(\data!)
 \end{align}
 where $p(\mps,\eps)$ is the Born rule probability of the quantum 
-system, as defined in \TODO.
+system, as defined in \autoref{eq:born-rule}.
 This produces the weighted Fisher information value $J(\mps,\eps)$,
 calculated as
 \begin{align}
