@@ -94,3 +94,7 @@ nosetests.xml
 .ipynb_checkpoints/
 
 notes/writeup.synctex.gz(busy)
+
+## Jetbrains IDE folders
+.idea
+
