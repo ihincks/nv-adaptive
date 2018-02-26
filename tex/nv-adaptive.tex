@@ -84,8 +84,8 @@ We apply online Bayesian experiment design to a Nitrogen
 Vacancy (NV) in diamond to learn the values of a 
 five-parameter model describing its Hamiltonian and decoherence process.
 Comparing this to standard pre-determined experiment sweeps, 
-we find that we can obtain error bars on some parameters that 
-are \TODO~ times smaller given the same amount of data.
+we find that we can achieve average posterior variances that are 
+between 10 and 100 times better given the same amount of data.
 This has applications to NV magnetometry where making faster measurements
 improves sensitivity.
 The methods that we use are generic and can in principle be 
@@ -125,7 +125,7 @@ has long been known that \textit{online}
 (also called \textit{adaptive} by some authors)
 experiment design is generally 
 capable of outperforming predetermined experiment sweeps
-\cite{chaloner_bayesian_1995}.
+\cite{chaloner_bayesian_1995}\citeneed.
 As its name implies, online experiment design allows the next experiment 
 choice to depend somehow on what has already been done.
 The reason for the advantage is obvious---online 
@@ -175,17 +175,24 @@ studied to improve quantum Hamiltonian estimation
 where a Hamiltonian form (or set of forms) is specified, and 
 unknown coefficients of Hamiltonian terms are sought.
 
-As a step toward this goal, the present work, 
-carrying on from the proposal of Reference~, 
-considers online Bayesian experiment design for the purpose 
-of quantum Hamiltonian learning.
-We interface a sequential Bayesian inference engine with 
+The purpose of the present work is to study
+online Bayesian experiment design, with Hamiltonian estimation 
+as the inference problem of choice, using experimental data and noise on 
+a system with slightly non-trivial dynamics.
+By non-trivial we mean that there are more than one or two 
+relevant inference parameters (we ultimately use 10), that 
+quantum state evolution does not admit a nice closed form
+solution, and that we allow the ability to turn 
+on and off the control field within an experiment.
+In doing so we hope to pave the way for similar experiments in
+yet more complex systems.
+To this end we interface a sequential Bayesian inference engine with 
 an experimental setup that controls a single Nitrogen
 Vacancy defect in diamond.
-The goal of this engine is to reduce the uncertainty 
-in its knowledge of the quantum system parameters as best as 
-possible by sequentially performing experiments, starting from 
-a prior state of knowledge.
+Nitrogen Vacancy centers are [\TODO motivate them a bit].
+This engine has the ability to decide what the next experiment 
+is, and can dispatch it to an asynchronous job-queue run by 
+the experiment hardware.
 
 This paper proceeds as follows.
 In \autoref{sec:inference} we briefly overview statistical 
@@ -531,6 +538,8 @@ for a single experiment is then given by
 \end{align}
 where $f$ is the probability mass function of the Poisson distribution,
 $f(Q,\lambda) = \e^{-\lambda}\lambda^Q/Q!$.
+Some example risk plots (\autoref{eq:bayes-risk}) of this model 
+are shown in \autoref{fig:risk-summary}.
 
 
 \begin{figure}[t]
@@ -697,13 +706,12 @@ Their magnitudes, relative contrast, and uncertainty
 all contribute to this information content.
 We quantify this idea by introducing what we call
 the number of \textit{effective strong measurements} (ESM), 
-$n_\ESM$,
 defined as the number of two-outcome strong measurements one would
 (hypothetically) have to do to gain the equivalent amount of 
 information about $p(\mps,\eps)$, averaged uniformly over $p\in[0,1]$.
 This works out to
 \begin{align}
-    n_\ESM = \frac{
+    \ESM = \frac{
             (\hat\alpha-\hat\beta)^2
         }{
             3(\hat\alpha+\hat\beta)+2\left(\sigma_\alpha^2+\sigma_\beta^2\right)
@@ -714,7 +722,7 @@ $\alpha$ and $\beta$, and $\sigma_\alpha$ and $\sigma_\beta$
 are standard deviation uncertainties in these estimates.
 See \autoref{apx:effective-strong-measurements} for details.
 We choose the number of repetitions in the next experiment, $N$, 
-such that the expected value of $n_\ESM$ is constant---see
+such that the expected value of $\ESM$ is constant---see
 \subref{fig:tracking-example}{(b-c)}.
 This is especially important for the purpose of our paper,
 which is to compare experiment design heuristics.
@@ -1033,28 +1041,35 @@ finite $T_2^*$ prevents us \cite{ferrie_how_2013}.
 \label{sec:conclusions}
 %=============================================================================
 
+future work
+\begin{enumerate}
+\item Generally, more complex systems
+\item for NV, Hyperfine couplings, with automatic model selection
+\item AC magnetometry schemes
+\item Better searching through experiments (we used brute force) 
+(basin hopping, particle swarm[cite wilhelm])
+\end{enumerate}
 
-Generally, more complex systems
-Hyperfine couplings, with model selection
-AC magnetometry schemes
 
-Better searching through experiments (basin hopping, particle swarm[cite wilhelm])
 
-There has been hesitation in moving to online experiment design for 
-quantum systems, in part because of the obvious increased up-front work,
-and partly too because in many specific applications, careful 
-thought and tuning 
-often render predetermined experiment design with occasional 
-human intervention quite efficient.
-However, as quantum systems scale and increase in complexity, the 
-up-front cost becomes increasingly negligible, and careful
-platform-specific manual tuning becomes difficult and time-consuming.
-We therefore expect 
-that the advantages of general purpose, automatic experiment design for calibration will become essential.
-We envisage Bayesian coprocessors (or eventually quantum-coprocessors) 
-along-side every complex quantum device that maintains a state of affairs,
-and can decide which next set of experiments will best maintain a tight
-description of this state of affairs.
+
+%%%%/
+%There has been hesitation in moving to online experiment design for 
+%quantum systems, in part because of the obvious increased up-front work,
+%and partly too because in many specific applications, careful 
+%thought and tuning 
+%often render predetermined experiment design with occasional 
+%human intervention quite efficient.
+%However, as quantum systems scale and increase in complexity, the 
+%up-front cost becomes increasingly negligible, and careful
+%platform-specific manual tuning becomes difficult and time-consuming.
+%We therefore expect 
+%that the advantages of general purpose, automatic experiment design for calibration will become essential.
+%We envisage Bayesian coprocessors (or eventually quantum-coprocessors) 
+%along-side every complex quantum device that maintains a state of affairs,
+%and can decide which next set of experiments will best maintain a tight
+%description of this state of affairs.
+%%%%
 
 %=============================================================================
 % END MATTER
@@ -1259,7 +1274,7 @@ $(\alpha,\beta,\sigma_\alpha,\sigma_\beta)$ is defined by
 equating $\int_0^1 K\dd p=\frac{1}{6n}$ and solving for $n$,
 which results in
 \begin{align}
-    n_\ESM = \frac{
+   \ESM = \frac{
             (\alpha-\beta)^2
         }{
             3(\alpha+\beta)+2\left(\sigma_\alpha^2+\sigma_\beta^2\right)
@@ -1276,14 +1291,14 @@ measured, but with no prior information.
 Finally, in \autoref{fig:effective-strong-meas}, we use some numerics
 to show that the $\ESM$
 quantity accurately relates the mean-squared error of the Bayes estimator
-for the referenced Poisson model and a binomial model with $n=n_\ESM$.
+for the referenced Poisson model and a binomial model with $n=\ESM$.
 
 \begin{figure}
     \includegraphics[width=\textwidth]{\figurefolder/effective-strong-meas}
     \caption{The mean-squared-error of the Bayes estimator is computed
     as a function of $p$
     for both the referenced Poisson model (blue, solid) and for a binomial model
-    (orange, dashed) where $n=n_\ESM$.
+    (orange, dashed) where $n=\ESM$.
     The prior distribution on $p$ is uniform.
     This is done in nine regimes, corresponding to the nine subplots of the figure.
     Each row uses a different magnitude of bright reference, $\alpha$,
