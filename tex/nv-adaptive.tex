@@ -119,13 +119,12 @@ Quantum system characterization is typically done by performing
 a set of predetermined experiments and subsequently processing
 statistics of the resulting data.
 While there is nothing wrong with this---and indeed, in some cases,
-this strategy can even be tuned to have near optimal performance
-\cite{chaloner_bayesian_1995,higgins_demonstrating_2009}---it
+this strategy can even be tuned to have near optimal performance---it
 has long been known that \textit{online}
 (also called \textit{adaptive} by some authors)
 experiment design is generally
 capable of outperforming predetermined experiment sweeps
-\cite{chaloner_bayesian_1995}.
+\cite{chaloner_bayesian_1995,higgins_demonstrating_2009}.
 As its name implies, online experiment design allows the next experiment
 choice to depend somehow on what has already been learned.
 The reason for the advantage is obvious---online
@@ -189,7 +188,7 @@ yet more complex systems.
 To this end we interface a sequential Bayesian inference engine with
 an experimental setup that controls a single Nitrogen
 Vacancy defect in diamond.
-Nitrogen Vacancy centers are [\TODO motivate them a bit].
+Nitrogen Vacancy centers are a defect in diamond consisting
 This engine has the ability to decide what the next experiment
 is, and can dispatch it to an asynchronous job-queue run by
 the experiment hardware.
@@ -647,8 +646,7 @@ as was recently demonstrated\cite{wang_experimental_2017}.
 For online heuristics, Bayes risk (\autoref{eq:bayes-risk})
 is calculated by noting that the
 particle approximation turns all integrals, which includes
-expectations and covariances, into finite sums;
-details are discussed in appendix\TODO.
+expectations and covariances, into finite sums.
 Some risk calculations for the NV model
 are plotted in \autoref{fig:risk-summary}.
 As seen in the timing diagram in \autoref{fig:online-timing-diagram}, these
@@ -998,8 +996,9 @@ exclusively.
 Our online
 learning rates appear to be at the standard quantum limit (SQL)
 once transient
-behavior has settled down; the dotted line in \subref{fig:heuristic-comparison}{(d)} guides the eye with the
-curve $10^{-1.7}\times\text{ESM}^{-1}$.
+behavior has settled down; the dotted line in
+\subref{fig:heuristic-comparison}{(d)} guides the eye with a
+curve $\propto\text{ESM}^{-1}$.
 The transient behavior prior to the SQL regime
 looks qualitatively exponential as a function of ESM.
 This does not violate the Heisenberg limit
@@ -1123,6 +1122,33 @@ the values
 for the parameters $(\Omega,\delta D,A,(T_2^*)^{-1})$, in units
 of $\si{MHz}$ and $\si{MHz^2}$ for the mean and covariance, respectively.
 
+In \autoref{fig:heuristic-comparison}, only the learning rates of
+$\we$ are reported---here, in \autoref{fig:param-learning-rates} and
+\autoref{fig:param-learning-rates-tight}, all learning rates are shown.
+
+\begin{figure*}
+    \includegraphics[width=\textwidth]{\figurefolder/param-learning-rates}
+    \caption{
+        An extension of
+        \subref{fig:heuristic-comparison}{(a-c)}
+        that shows learning rates of all parameters relevant to
+        the quantum dynamics of the system.
+        }
+    \label{fig:param-learning-rates}
+\end{figure*}
+
+\begin{figure*}
+    \includegraphics[width=\textwidth]{\figurefolder/param-learning-rates-tight}
+    \caption{
+        An extension of
+        \subref{fig:heuristic-comparison}{(d-f)}
+        that shows learning rates of all parameters relevant to
+        the quantum dynamics of the system.
+        }
+    \label{fig:param-learning-rates-tight}
+\end{figure*}
+
+
 %=============================================================================
 \section{Effective Strong Measurements}
 \label{apx:effective-strong-measurements}
@@ -1169,7 +1195,7 @@ This will allow one, for example,
 to quantitatively compare two experimental setups or NVs and
 decide which one is better at providing information about $p$.
 
-It has been shown\cite{hincks_statistical_2017} that the
+It has been shown\cite{hincks_statistical_2018} that the
 Fisher information matrix of this
 referenced Poisson model is given by
 \begin{align}
