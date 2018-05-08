@@ -323,7 +323,7 @@ beliefs about the frequencies of the system.
 
 \begin{figure*}
     \includegraphics[width=\textwidth]{\figurefolder/online-timing-diagram}
-    \caption{Timing diagram for three rounds of online Bayesian learning. The role of the
+    \caption{Timing diagram of online Bayesian learning. The role of the
     experiment design heuristic is to pick the next experiment configuration
     $e_{n+1}$, possibly based
     on the current state of knowledge, $\pi_n(\mps)$, resulting in the
@@ -770,7 +770,8 @@ degrees-of-freedom parameter $\nu=30$ and a scale matrix $\Psi$
 such that the mean value of the prior corresponds to
 $\sigma_\alpha=\sigma_\beta=\sigma_{\alpha,\beta}/0.7=\SI{0.036}{/hour}$.
 We use an empirical prior on $\alpha$ and $\beta$, where before
-the actual experiments take place, a reference-only experiment is performed with $N=300000$ repetitions, and the prior
+the actual experiments take place, a reference-only experiment is performed
+with $N=300000$ repetitions, and the prior
 is set as $\alpha\sim\gammadist(\mu=X/N,\sigma=3\sqrt{X}/N)$
 and $\beta\sim\gammadist(\mu=Y/N,\sigma=3\sqrt{Y}/N)$.
 When a tracking operation is performed, the distribution of
