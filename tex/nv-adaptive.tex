@@ -125,7 +125,7 @@ has long been known that \textit{online}
 (also called \textit{adaptive} by some authors)
 experiment design is generally
 capable of outperforming predetermined experiment sweeps
-\cite{chaloner_bayesian_1995}\citeneed.
+\cite{chaloner_bayesian_1995}.
 As its name implies, online experiment design allows the next experiment
 choice to depend somehow on what has already been learned.
 The reason for the advantage is obvious---online
@@ -158,13 +158,13 @@ and quantum state tomography
     struchalin_experimental_2016,
     granade_practical_2016,
     qi_adaptive_2017}.
-Online experiment design has been considered for use
-with randomized benchmarking experiments\cite{granade_accelerated_2015},
-and though centered around control rather than inference, adaptive steps
+Online experiment design has been suggested for sequence length choices in
+randomized benchmarking experiments\cite{granade_accelerated_2015},
+and adaptive protocols
 to generate control pulses for quantum systems have been proposed
 \cite{egger_adaptive_2014,ferrie_robust_2015,rol_restless_2017}.
-In line with the present work, online experiment design has also been
-studied to improve quantum Hamiltonian estimation
+Here we build on online experiment applied to
+quantum Hamiltonian estimation
 \cite{
     sergeevich_characterization_2011,
     granade_robust_2012,
@@ -229,13 +229,13 @@ describe the system.
 
 Quantum devices are controlled by some collection of
 classical knobs that adjust various settings
-such as power levels, timings, input frequencies, and so on.
+such as power, timings, carrier frequencies, and so on.
 We refer to a specific assignment of all of these settings as an
 \textit{experiment configuration}, sometimes called the control
 variables, which we label $\eps$.
 Then an \textit{experiment}
 consists of a quantum measurement (or set of quantum measurements)
-made using these fixed experiment configuration.
+made using this fixed experiment configuration.
 For example, in this nomenclature, a standard Rabi curve
 would be constructed by making a set of
 experiments, each one defining---among other fixed parameters---a
@@ -248,7 +248,7 @@ over a known time interval, a time series of voltages,
 or a number of `down' strong measurement results out of $N$
 repetitions, and so on.
 
-Generally, the goal of statistical inference is to learn about the parameters
+Generally, the goal of statistical inference is to learn the parameters
 $\mps$ given a data set $\data_1,\ldots,\data_n$ with respective
 configurations $\eps_1,\ldots,\eps_n$.
 This requires us to additionally specify a model for the
@@ -266,7 +266,7 @@ Here, and throughout this paper, we use subscripted index-range notation,
 where, for example, $\data_{1:n}=\{\data_1,...,\data_n\}$.
 Note that multiple models can be considered and compared---known
 as model selection---if the
-true model is not known, and if such a thing even exists.
+true model is not known.
 For quantum systems, these likelihood models come naturally
 through quantum system evolution formulas in conjunction
 with Born's rule.
@@ -287,8 +287,9 @@ natural integration with online experiments, discussed below.
 In short, in the paradigm of (sequential) Bayesian inference, one constantly
 maintains a state of knowledge about the model parameters $\mps$, encoded
 as a probability distribution $\pi_n(\mps)=\Pr(\mps|\data_{1:n},\eps_{1:n})$,
-where $n=1,2,3,...$ indexes the moment in time when the first $n$ data
-points $\data_{1:n}$ have been collected and processed.
+where $n=1,2,3,...$ indexes the state of knowledge when the first $n$ data
+points $\data_{1:n}$ have been collected and processed from the
+first $n$ experiments $\eps_{1:n}$.
 We write $\pi_0(x)$ to denote the distribution prior to all measurements.
 The update from $\pi_{n-1}$ to $\pi_n$ is done through Bayes' law,
 \begin{equation}
@@ -300,8 +301,9 @@ The update from $\pi_{n-1}$ to $\pi_n$ is done through Bayes' law,
         },
 \end{equation}
 so that our knowledge is improved sequentially as each datum arrives.
-Note that this formula is equivalent to
-$\pi_n(\eps)=\Pr(\data_{1:n}|\mps,\eps_{1:n})\pi_0(\mps)/\Pr(\data_{1:n}|\eps_{1:n})$ when expanded with the chain rule of conditional probabilites.
+Note that the chain rule of conditional probabilities can be used to expand
+this equation into
+$\pi_n(\eps)=\Pr(\data_{1:n}|\mps,\eps_{1:n})\pi_0(\mps)/\Pr(\data_{1:n}|\eps_{1:n})$.
 
 %=============================================================================
 \section{Bayesian Experimental Design}
@@ -319,7 +321,7 @@ with offline heuristics, where the next experiment is chosen by
 increasing the pulse time by a fixed duration in each experiment.
 The number of experiments and pulse time increments are usually
 chosen through Nyquist considerations based on prior implicit
-beliefs about the frequencies of the system.
+beliefs about the frequencies and relaxation times of the system.
 
 \begin{figure*}
     \includegraphics[width=\textwidth]{\figurefolder/online-timing-diagram}
@@ -347,8 +349,7 @@ the possible experiment configuration $\eps$ is
         &= \int \pi_n(\mps)U_n(\mps,\data,\eps)\dd\mps.
 \end{align}
 Since we do not know \textit{a priori} which $\data$ will
-occur (not having performed the experiment yet) the average
-utility of the possible configuration $\eps$ as a whole is
+occur the average utility of the possible configuration $\eps$ as a whole is
 \begin{align}
     U_n(\eps)
         &= \int\Pr(\data|\eps)U_n(\data,\eps) \dd\data
@@ -356,7 +357,7 @@ utility of the possible configuration $\eps$ as a whole is
 where $\Pr(\data|\eps)=\int \Pr(\data|\mps,\eps)\pi_n(\mps)\dd\mps$ is the
 predictive distribution.
 Based on this quantity we can choose the next experiment to be
-the one that maximizes utility,
+the one that maximizes the utility,
 \begin{align}
     \eps_{n+1} = \argmax_\eps U_n(\eps),
 \end{align}
@@ -372,7 +373,7 @@ In particular, we choose $U_n=-r_{n,Q}$ where
     r_{n,Q}(\mps,\data,\eps)
         &= (\mps - \hat\mps_{n,\data,\eps})^\T Q (\mps - \hat\mps_{n,\data,\eps})
 \end{align}
-with $Q$ is a positive semi-definite weighting matrix.
+where $Q$ is a positive semi-definite weighting matrix.
 Here, $\hat{\mps}_{n,\data,\eps}=\int \mps \tilde{\pi}_{n,\data,\eps}(\mps)\dd\mps$
 is the Bayes estimator of $\mps$ based on the posterior distribution
 $\tilde{\pi}_{n,\data,\eps}(\mps)\propto \Lhood(\mps;\data,\eps)\pi_n(\mps)$
@@ -439,17 +440,17 @@ more nuisance parameters will be added later) are given by
 \begin{align}
     \mps=(\Omega,\omega_e,\delta D,A,(T_2^*)^{-1})
 \end{align}
-where $\delta D=D-\SI{2.87}{GHz}$ and $\Omega$ is the maximum possible
-value that $\Omega_1(t)$ can take.
+where $\delta D=D-\SI{2.87}{GHz}$.
+Here, $\Omega$ is the maximum possible
+value that $\Omega_1(t)$ can take, so that we can write
+$\Omega_1(t)=a(t)\Omega$ using the unitless pulse-profile function
+$a(t):[0,\te]\rightarrow [-1,1]$ of duration $\te$.
 
-A general experiment configuration is specified by
+A general experiment configuration is then specified by
 \begin{align}
     \eps=(a(t), \omega_\uw, N)
 \end{align}
-where $a(t):[0,\te]\rightarrow [-1,1]$ is the
-unitless pulse profile of duration $\te$
-yielding $\Omega_1(t)=a(t)\Omega$,
-$\omega_\uw$ is the applied microwave frequency,
+where $a(t)$ pulse profile, $\omega_\uw$ is the applied microwave frequency,
 and $N$ is the number of repetitions of this experiment\footnote{The
 experiment configuration must also specify values for each of the timings
 labeled in \autoref{fig:experiment-pulse-sequences}, but as they are
