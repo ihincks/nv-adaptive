@@ -942,7 +942,6 @@ online heuristic slightly
 outperforms the evenly weighted online heuristic ---this
 is unsurprising as we happen to be plotting the variance of the magnetometry
 parameter, $\omega_e$.
-Plots for other parameters can be found in \autoref{apx:supp-plots-and-data}.
 
 In the context of magnetometry, it is unrealistic to assume such a
 wide prior as \autoref{eq:wide-prior}.
@@ -993,6 +992,9 @@ Finally, notice in the histograms, that the uniformly weighted
 online heuristic again chooses Rabi experiments almost
 exclusively.
 
+Supplementary plots, including posterior distributions, can be
+found in \autoref{apx:supp-plots-and-data}.
+
 Our online
 learning rates appear to be at the standard quantum limit (SQL)
 once transient
@@ -1034,6 +1036,7 @@ finite $T_2^*$ makes such experiments uninformative
     Note that the $y$-axis between histograms is shared, that
     the scaling switches from linear to logarithmic at $y=5$, and
     that all four subfigures contain $100$ histogram bins.
+    Additional learning curves are plotted in \autoref{apx:supp-plots-and-data}.
     }
     \label{fig:heuristic-comparison}
 \end{figure*}
@@ -1123,7 +1126,7 @@ for the parameters $(\Omega,\delta D,A,(T_2^*)^{-1})$, in units
 of $\si{MHz}$ and $\si{MHz^2}$ for the mean and covariance, respectively.
 
 In \autoref{fig:heuristic-comparison}, only the learning rates of
-$\we$ are reported---here, in \autoref{fig:param-learning-rates} and
+$\omega_\text{e}$ are reported---in \autoref{fig:param-learning-rates} and
 \autoref{fig:param-learning-rates-tight}, all learning rates are shown.
 
 \begin{figure*}
@@ -1144,6 +1147,30 @@ $\we$ are reported---here, in \autoref{fig:param-learning-rates} and
         \subref{fig:heuristic-comparison}{(d-f)}
         that shows learning rates of all parameters relevant to
         the quantum dynamics of the system.
+        }
+    \label{fig:param-learning-rates-tight}
+\end{figure*}
+
+\begin{figure*}
+    \includegraphics[width=\textwidth]{\figurefolder/param-posteriors}
+    \caption{
+        For each heuristic in
+        \subref{fig:heuristic-comparison}{(a-c)},
+        posterior marginal distributions are plotted for the first (of 100)
+        trials on each parameter relative to the quantum dynamics of the
+        system.
+        }
+    \label{fig:param-learning-rates}
+\end{figure*}
+
+\begin{figure*}
+    \includegraphics[width=\textwidth]{\figurefolder/param-posteriors-tight}
+    \caption{
+        For each heuristic in
+        \subref{fig:heuristic-comparison}{(d-f)},
+        posterior marginal distributions are plotted for the first (of 100)
+        trials on each parameter relative to the quantum dynamics of the
+        system.
         }
     \label{fig:param-learning-rates-tight}
 \end{figure*}
