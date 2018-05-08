@@ -103,7 +103,7 @@ def normalized_and_separated_signal(df):
     ramsey_p_stds = p_stds[ramsey_idx]
     return rabi_eps, rabi_p, rabi_p_stds, ramsey_eps, ramsey_p, ramsey_p_stds  
 
-def extract_panel_data(panel, y_column, idxs=None, x_column=None, skip_first=False):
+def extract_panel_data(panel, y_column, idxs=None, x_column=None, skip_first=False,skip_last=False):
     """
     Extracts data from a HeuristicData object across data frames. It is assumed
     that all dataframes have the same number of rows.
@@ -129,6 +129,9 @@ def extract_panel_data(panel, y_column, idxs=None, x_column=None, skip_first=Fal
         row_idxs = np.s_[:]
         n_rows = len(sample_y)
         sample_y = sample_y[0][idxs]
+    if skip_last:
+        n_rows = n_rows - 1
+        row_idxs = np.s_[1:-1]
     
     y_data = np.empty((n_df, n_rows,) + sample_y.shape, dtype=sample_y.dtype)
     for idx_df in range(n_df):
