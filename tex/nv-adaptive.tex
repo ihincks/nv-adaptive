@@ -136,23 +136,23 @@ Online experiment design has a long history in quantum systems.
 Almost five decades ago, it was used to reduce the time required to
 determine relaxation rates in NMR spin systems \cite{freeman_adaptive_1972},
 and later to speed up inversion recovery $T_1$ measurements
-\cite{taitelbaum_two-stage_1993}.
+\cite{taitelbaum_twostage_1993}.
 In recent decades, it has been studied extensively, both in theory
 and experiment, in the context of quantum phase estimation
 \cite{
     wiseman_adaptive_1995,
     berry_optimal_2001,
-    higgins_entanglement-free_2007,
+    higgins_entanglementfree_2007,
     berry_how_2009,
     higgins_demonstrating_2009,
-    xiang_entanglement-enhanced_2011,
-    yonezawa_quantum-enhanced_2012,
-    ciampini_quantum-enhanced_2016}
+    xiang_entanglementenhanced_2011,
+    yonezawa_quantumenhanced_2012,
+    ciampini_quantumenhanced_2016}
 and quantum state tomography
 \cite{
     huszar_adaptive_2012,
     kravtsov_experimental_2013,
-    ferrie_self-guided_2014,
+    ferrie_selfguided_2014,
     stenberg_adaptive_2015,
     struchalin_experimental_2016,
     granade_practical_2016,
@@ -162,7 +162,7 @@ randomized benchmarking experiments\cite{granade_accelerated_2015},
 and adaptive protocols
 to generate control pulses for quantum systems have been proposed
 \cite{egger_adaptive_2014,ferrie_robust_2015,rol_restless_2017}.
-Here we build on online experiment applied to
+Here we build on online experiment design applied to
 quantum Hamiltonian estimation
 \cite{
     sergeevich_characterization_2011,
@@ -179,19 +179,30 @@ online Bayesian experiment design, with Hamiltonian estimation
 as the inference problem of choice, using experimental data and noise on
 a system with slightly non-trivial dynamics.
 By non-trivial we mean that there are more than one or two
-relevant inference parameters (we ultimately use 10), that
+relevant inference parameters (we ultimately use 10, including nuissance
+parameters describing optical drift), that
 quantum state evolution does not admit a nice closed form
 solution, and that we allow the ability to turn
 on and off the control field within an experiment.
 In doing so we hope to pave the way for similar experiments in
 yet more complex systems.
 To this end we interface a sequential Bayesian inference engine with
-an experimental setup that controls a single Nitrogen
-Vacancy defect in diamond.
-Nitrogen Vacancy centers are a defect in diamond consisting
-This engine has the ability to decide what the next experiment
-is, and can dispatch it to an asynchronous job-queue run by
-the experiment hardware.
+an experimental setup that controls the qutrit manifold of a single Nitrogen
+Vacancy (NV) defect in diamond.
+NV defects are widely studied quantum systems that can
+be initialized and read-out optically
+\cite{
+    gruber_scanning_1997,
+    jelezko_readout_2004,
+    harrison_optical_2004},
+manipulated at microwave frequencies\cite{jelezko_observation_2004},
+and have long coherence times at room temperature\cite{balasubramanian_ultralong_2009}.
+Their proposed applications include quantum sensing
+\cite{
+    dolde_electricfield_2011,
+    acosta_temperature_2010,
+    rondin_magnetometry_2014a}
+and building quantum repeaters\cite{childress_faulttolerant_2006}.
 
 This paper proceeds as follows.
 In \autoref{sec:inference} we briefly overview statistical
@@ -204,8 +215,6 @@ In \autoref{sec:computation-and-hardware} we discuss some
 hardware, software, and implementation details of our setup.
 Finally, in \autoref{sec:results} we present our results
 comparing offline and online experiment design heuristics.
-
-
 
 %=============================================================================
 \section{Inference of Quantum Devices}
@@ -396,8 +405,9 @@ mean-squared-error \textit{Bayes risk}.
 
 The quantum system used in our experiment is a nitrogen vacancy (NV) center,
 which is a defect found in diamond consisting of a nitrogen adjacent to
-a vacant lattice position \cite{doherty_nitrogen-vacancy_2013}.
-Our goal for this section is to explicitly define model parameters, experiment configurations, and a likelihood function for this system.
+a vacant lattice position \cite{doherty_nitrogenvacancy_2013}.
+Our goal for this section is to explicitly define model parameters, experiment
+configurations, and a likelihood function for this system.
 Once this is achieved, we will be able to employ sequential
 Bayesian inference and online experiment design.
 
@@ -599,7 +609,7 @@ are shown in \autoref{fig:risk-summary}.
 For all experiment design heuristics, offline and online,
 we use the sequential Monte Carlo (SMC) \cite{doucet_tutorial_2009}
 method to numerically compute sequential posteriors
-using the Python library \qinfer \cite{granade_qinfer:_2017}.
+using the Python library \qinfer \cite{granade_qinfer_2017}.
 In this algorithm, the state of knowledge about the model
 parameters, $\pi_n(\mps)$,
 is approximated as a finite list of weighted hypothetical values
@@ -629,7 +639,7 @@ $\sum_{i=1}^K w_{n+1,i}=1$.
 We use the scheme of Liu and West \cite{liu_combined_2001}
 to resample particle locations,
 triggered by a threshold in the effective particle count,
-$n_\text{eff}:=1/\sum_{i=1} w_{n,i}^2$ \cite{granade_qinfer:_2017}.
+$n_\text{eff}:=1/\sum_{i=1} w_{n,i}^2$ \cite{granade_qinfer_2017}.
 We also use the bridged-updating trick discussed in
 Reference~\cite{hincks_statistical_2018}.
 
@@ -951,7 +961,7 @@ For example, one might be constructing a magnetic image
 \cite{
     maletinsky_robust_2012,
     grinolds_nanoscale_2013,
-    rondin_stray-field_2013},
+    rondin_strayfield_2013},
 and each
 pixel of the image requires a new field measurement.
 Therefore, as our second comparison, we place a prior that is tight in all
@@ -1160,7 +1170,7 @@ heursitic is used as a representative.
         For each heuristic in
         \subref{fig:heuristic-comparison}{(a-c)},
         posterior marginal distributions are plotted for the first (of 100)
-        trials on each parameter relative to the quantum dynamics of the
+        trials on each parameter relevant to the quantum dynamics of the
         system.
         }
     \label{fig:param-posteriors}
@@ -1172,7 +1182,7 @@ heursitic is used as a representative.
         For each heuristic in
         \subref{fig:heuristic-comparison}{(d-f)},
         posterior marginal distributions are plotted for the first (of 100)
-        trials on each parameter relative to the quantum dynamics of the
+        trials on each parameter relevant to the quantum dynamics of the
         system.
         }
     \label{fig:param-posteriors-tight}
