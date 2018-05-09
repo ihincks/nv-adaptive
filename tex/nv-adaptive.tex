@@ -1056,17 +1056,72 @@ finite $T_2^*$ makes such experiments uninformative
 \label{sec:conclusions}
 %=============================================================================
 
-future work
-\begin{enumerate}
-\item Generally, more complex systems
-\item for NV, Hyperfine couplings, with automatic model selection
-\item AC magnetometry schemes
-\item Better searching through experiments (we used brute force)
-(basin hopping, particle swarm[cite wilhelm])
-\end{enumerate}
+We compared the ability of several experiment design heuristics to
+experimentally learn the electronic ground state Hamiltonian of a an
+NV defect in diamond.
+Some of our heuristics were offline---using experiment sweeps that were
+predetermined, and some of heuristics were online---using knowledge gained from
+previous experiments to choose the next experiment adaptively.
+Heuristics are summarized in \autoref{tab:heuristics}.
+All data analysis was done with sequential Bayesian inference,
+and all online heuristics were based on minimizing the
+weighted Bayes risk over a collection of possible experiments.
+Heuristics were compared by running each 100 independent times, and comparing
+the reduction in posterior variance of certain parameters as a function of
+the number of experiments performed.
 
+We found that our online heuristics
+outperformed our offline heuristics; results are summarized in
+\autoref{fig:risk-summary}.
+In particular, in the case that a very wide prior on parameters was used for
+heuristics (\subref{fig:heuristic-comparison}{(a-c)}), we found that the
+median posterior variance of the parameter $\omega_e$---which is proportional
+to the external magnetic field's projection onto the z-axis---is over two
+orders of magnitude smaller after 200 experiments (comprising ~200 effective
+strong measurements per experiment) for the online heuristic called
+Magnetometry Weighted Risk heuristic than
+it is for the offline heuristic called Alternating Linear.
+Next, in the case of a prior that is tight on all paramaters except $\omega_e$
+(\subref{fig:heuristic-comparison}{(d-f)}), we found about an order of
+magnitude of improvement between the best online heuristic and the
+best offline heuristic
+The use case of this prior is when one wants to use a calibrated NV
+device to measure many magnetic fields.
 
+Consistent with intuition, we found that when online experiments are weighted
+to improve $\omega_e$ alone, they tend to choose Ramsey experiments almost
+exclusively, rather than Rabi experiments, see
+\subref{fig:heuristic-comparison}{(b-c,e-f)}.
 
+An additional benefit of our online heuristics, seperate from faster
+median decrease in parameter variance, is that variance decreases more
+predictably.
+This is seen in the tighter 80\% percentile regions of
+\subref{fig:heuristic-comparison}{(a,d)} for online experiments.
+For example, the difference in the final posterior variance of the parameter
+$\omega_e$ varies by as much as four orders of magnitude between
+independent trials for the Ramsey Sweeps protocol, whereas it
+always varies by less than one order of magnitude for all online heuristics.
+
+Studies of the sort presented by this paper necessarily suffer from having to
+make an endless number of choices---in the end we had to choose a
+finite number of heuristics to compare, which types of experiments heuristics
+should be allowed to perform, what the hyper-parameters of each heuristic
+should be, what the initial prior over parameters should be, and so on.
+Though these choices are ultimately arbitrary, we attempted to make them
+as reasonable as possible, with the end goal of comparing a fully brute-force
+Bayesian scheme against what have historically been the \emph{de facto}
+methods of characterization.
+While we would not be surprised to find a less computationally expensive
+experiment design heuristic for this particular problem
+with similar performance (for example, see
+the heuristic policies in \cite{stenberg_characterization_2016}),
+the advantage of a full-risk based approach is that it doesn't require an
+expert to design a heuristic for every particular combination system and
+protocol.
+Indeed, minimizing Bayes risk, if computationally feasible either with
+classical or quantum resources, is a sensible approach for practically
+any characterization protocol, from tomography to randomized benchmarking.
 
 %%%%/
 %There has been hesitation in moving to online experiment design for
