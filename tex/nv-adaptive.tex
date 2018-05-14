@@ -379,7 +379,7 @@ In particular, we choose $U_n=-r_{n,Q}$ where
 \end{align}
 where $Q$ is a positive semi-definite weighting matrix.
 Here, $\hat{\mps}_{n,\data,\eps}=\int \mps \tilde{\pi}_{n,\data,\eps}(\mps)\dd\mps$
-is the Bayes' estimator of $\mps$ based on the posterior distribution
+is the Bayes estimator of $\mps$ based on the posterior distribution
 $\tilde{\pi}_{n,\data,\eps}(\mps)\propto \Lhood(\mps;\data,\eps)\pi_n(\mps)$
 given hypothetical data $\data$.
 In this case, after a bit of rearranging,
@@ -392,7 +392,7 @@ against $Q$,
     \label{eq:bayes-risk}
 \end{align}
 a quantity known as the $Q$-weighted
-mean-squared-error \textit{Bayes' risk}.
+mean-squared-error \textit{Bayes risk}.
 
 %=============================================================================
 \section{Nitrogen Vacancy System Model}
@@ -622,7 +622,7 @@ sampling $K$ initial particles $\mps_{0,i}$ from the prior distribution
 and setting uniform weights $w_{0,i}=1/K$.
 Given the new datum $\data_{n+1}$ under experiment
 configuration $\eps_{n+1}$,
-Bayes' update can be implemented with the simple multiplication
+Bayes update can be implemented with the simple multiplication
 \begin{align}
     w_{n+1,i}
         &\propto w_{n,i}\cdot \Lhood(\mps_{n,i};\data_{n+1},\eps_{n+1})
@@ -649,14 +649,14 @@ with $K=30000$ particles.
 In principle, simulations could instead be run on quantum simulators,
 as was recently demonstrated \cite{wang_experimental_2017}.
 
-For online heuristics, the Bayes' risk (\autoref{eq:bayes-risk})
+For online heuristics, the Bayes risk (\autoref{eq:bayes-risk})
 is calculated by noting that the
 particle approximation turns all integrals, which includes
 expectations and covariances, into finite sums.
 Some risk calculations for the NV model
 are plotted in \autoref{fig:risk-summary}.
 As seen in the timing diagram in \autoref{fig:online-timing-diagram}, these
-calculations (along with the Bayes' updates) are
+calculations (along with the Bayes updates) are
 performed concurrently with experiments so that they do not
 add to experiment cost\footnote{Of course, this is only
 possible so long as the experiment repetition count is large
@@ -846,7 +846,7 @@ deviation of our prior for $\alpha$.
         The best Ramsey tip time is defined by
         $\hat{t}_{\text{p,best}}=1/(4\hat{\Omega})$ (rounded to the nearest
         \SI{2}{ns}), where $\hat\Omega$ is the current
-        Bayes' estimate of the microwave drive amplitude.
+        Bayes estimate of the microwave drive amplitude.
         $E_\Rabi(t_{\max},m)$ denotes a set of Rabi experiments with pulse
         times $\tp=t_{\max}/m,2t_{\max}/m,\ldots,t_{\max}$, and
         $E_\Ramsey(\tp, t_{\max},m)$ denotes a set of Ramsey experiments with wait times
@@ -1062,7 +1062,7 @@ previous experiments to choose the next experiment adaptively.
 Heuristics are summarized in \autoref{tab:heuristics}.
 All data analysis was done with sequential Bayesian inference,
 and all online heuristics were based on minimizing the
-weighted Bayes' risk over a collection of possible experiments.
+weighted Bayes risk over a collection of possible experiments.
 Heuristics were compared by running 100 independent trials of each, and comparing
 the reduction in posterior variance of certain parameters as a function of
 the number of experiments performed.
@@ -1115,7 +1115,7 @@ the heuristic policies in \cite{stenberg_characterization_2016}),
 the advantage of a full-risk based approach is that it doesn't require an
 expert to design a heuristic for every particular combination system and
 protocol.
-Indeed, minimizing Bayes' risk, if computationally feasible either with
+Indeed, minimizing Bayes risk, if computationally feasible either with
 classical or quantum resources, is a sensible approach for practically
 any characterization protocol, from tomography to randomized benchmarking.
 
@@ -1410,12 +1410,12 @@ measured, but with no prior information.
 
 Finally, in \autoref{fig:effective-strong-meas}, we use some numerics
 to show that the $\ESM$
-quantity accurately relates the mean-squared error of the Bayes' estimator
+quantity accurately relates the mean-squared error of the Bayes estimator
 for the referenced Poisson model and a binomial model with $n=\ESM$.
 
 \begin{figure}
     \includegraphics[width=\textwidth]{\figurefolder/effective-strong-meas}
-    \caption{The mean-squared-error of the Bayes' estimator is computed
+    \caption{The mean-squared-error of the Bayes estimator is computed
     as a function of $p$
     for both the referenced Poisson model (blue, solid) and for a binomial model
     (orange, dashed) where $n=\ESM$.
@@ -1428,7 +1428,7 @@ for the referenced Poisson model and a binomial model with $n=\ESM$.
     \label{fig:effective-strong-meas}
 \end{figure}
 
-\section{Brute-force Numerical Evaluation of Bayes' Risk}
+\section{Brute-force Numerical Evaluation of Bayes Risk}
 \label{apx:brute-force-bayes-risk}
 \todo{Insert appendix section}
 \end{document}
