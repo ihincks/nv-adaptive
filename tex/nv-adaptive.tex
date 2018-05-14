@@ -87,8 +87,7 @@ Comparing this to standard pre-determined experiment sweeps,
 we find that we can achieve median posterior variances on some parameters
 that are between 10 and 100 times better given the same amount of data.
 This has applications to NV magnetometry where one of the Hamiltonian
-coefficients is the parameter of interest.
-The methods that we use are generic and can be adapted to any quantum device.
+coefficients is the parameter of interest. Furthermore, the methods that we use are generic and can be adapted to any quantum device.
 \end{abstract}
 
 \maketitle
@@ -107,7 +106,7 @@ The methods that we use are generic and can be adapted to any quantum device.
 Characterizing quantum devices efficiently is an increasingly
 important problem.
 In the case of quantum processors, knowing system properties
-and error processes is helpful for designing robust quality control.
+and error processes is helpful for designing robust high-fidelity control.
 If system parameters drift in time, they will
 need to be periodically recharacterized, which reduces uptime.
 Or, in the case of metrology, certain properties of the quantum
@@ -131,8 +130,7 @@ experiments can potentially avoid executing experiments that
 are expected to be uninformative by using information that was
 initially unavailable.
 
-Online experiment design has a long history in quantum systems.
-Almost five decades ago, it was used to reduce the time required to
+Online experiment design has a long history in quantum systems. Almost five decades ago, it was used to reduce the time required to
 determine relaxation rates in NMR spin systems \cite{freeman_adaptive_1972},
 and later to speed up inversion recovery $T_1$ measurements
 \cite{taitelbaum_twostage_1993}.
@@ -178,7 +176,7 @@ online Bayesian experiment design, with Hamiltonian estimation
 as the inference problem of choice, using experimental data and noise on
 a system with slightly non-trivial dynamics.
 By non-trivial we mean that there are more than one or two
-relevant inference parameters (we ultimately use 10, including nuissance
+relevant inference parameters (we ultimately use 10, including nuisance
 parameters describing optical drift), that
 quantum state evolution does not admit a nice closed form
 solution, and that we allow the ability to turn
@@ -286,13 +284,12 @@ with statistical derivations, or more generally, through techniques like bootstr
 Least-squared curve fitting is often used as a proxy for the MLE (with
 confidence intervals arriving from assuming
 a linearized model) since it is exactly equal to the MLE
-for linear models.
+for linear models and normal likelihood functions.
 
 The MLE is one example of an estimator in a vast literature on estimator theory.
 In the present work, we limit ourselves to the use of Bayesian inference because of its
 natural integration with online experiments, discussed below.
-In short, in the paradigm of (sequential) Bayesian inference, one constantly
-maintains a state of knowledge about the model parameters $\mps$, encoded
+In short, in the paradigm of (sequential) Bayesian inference, one maintains the most current state of knowledge about the model parameters $\mps$, encoded
 as a probability distribution $\pi_n(\mps)=\Pr(\mps|\data_{1:n},\eps_{1:n})$,
 where $n=1,2,3,...$ indexes the state of knowledge when the first $n$ data
 points $\data_{1:n}$ have been collected and processed from the
@@ -359,7 +356,7 @@ Since we do not know \textit{a priori} which $\data$ will
 occur the average utility of the possible configuration $\eps$ as a whole is
 \begin{align}
     U_n(\eps)
-        &= \int\Pr(\data|\eps)U_n(\data,\eps) \dd\data
+        &= \int\Pr(\data|\eps)U_n(\data,\eps) \dd\data,
 \end{align}
 where $\Pr(\data|\eps)=\int \Pr(\data|\mps,\eps)\pi_n(\mps)\dd\mps$ is the
 predictive distribution.
@@ -382,7 +379,7 @@ In particular, we choose $U_n=-r_{n,Q}$ where
 \end{align}
 where $Q$ is a positive semi-definite weighting matrix.
 Here, $\hat{\mps}_{n,\data,\eps}=\int \mps \tilde{\pi}_{n,\data,\eps}(\mps)\dd\mps$
-is the Bayes estimator of $\mps$ based on the posterior distribution
+is the Bayes' estimator of $\mps$ based on the posterior distribution
 $\tilde{\pi}_{n,\data,\eps}(\mps)\propto \Lhood(\mps;\data,\eps)\pi_n(\mps)$
 given hypothetical data $\data$.
 In this case, after a bit of rearranging,
@@ -395,7 +392,7 @@ against $Q$,
     \label{eq:bayes-risk}
 \end{align}
 a quantity known as the $Q$-weighted
-mean-squared-error \textit{Bayes risk}.
+mean-squared-error \textit{Bayes' risk}.
 
 %=============================================================================
 \section{Nitrogen Vacancy System Model}
@@ -497,11 +494,11 @@ to the Lindlad master equation,
             -(\I\otimes L^\dagger L + \overline{L^\dagger L}\otimes \I) / 2,
 \end{align}
 \end{subequations}
-and where $\mathcal{T}$ is Dyson's time ordering symbol.
+and where $\mathcal{T}$ is Dyson's time ordering operator.
 This results in the measurement probability
 \begin{align}
     p(\mps,\eps)
-        &=  \dbra{P_0} \S(\mps,\eps)\dket{\rho_0}
+        &=  \dbra{P_0} \S(\mps,\eps)\dket{\rho_0},
     \label{eq:born-rule}
 \end{align}
 where our initial state is $\rho_0=\ketbra{0}\otimes\I/3$
@@ -608,7 +605,7 @@ are shown in \autoref{fig:risk-summary}.
 For all experiment design heuristics, offline and online,
 we use the sequential Monte Carlo (SMC) \cite{doucet_tutorial_2009}
 method to numerically compute sequential posteriors
-using the Python library \qinfer \cite{granade_qinfer_2017}.
+using the Python library \qinfer  \cite{granade_qinfer_2017}.
 In this algorithm, the state of knowledge about the model
 parameters, $\pi_n(\mps)$,
 is approximated as a finite list of weighted hypothetical values
@@ -642,31 +639,31 @@ $n_\text{eff}:=1/\sum_{i=1} w_{n,i}^2$ \cite{granade_qinfer_2017}.
 We also use the bridged-updating trick discussed in
 Reference~\cite{hincks_statistical_2018}.
 
-Notice that the expensive stage of this algorithm is
+We note that the expensive stage of this algorithm is
 embarrassingly parallel---simulations under the various
 model parameters $\mps_{n,i}$ can be performed independently.
 All of our processing was run on a desktop computer with simulations
-parallelized over the 12 cores in a pair of Intel Xeon X5675 CPUs.
+parallelized over the 12 cores on a pair of Intel Xeon X5675 CPUs.
 In this configuration, our updates took on the order of $2$ seconds
 with $K=30000$ particles.
 In principle, simulations could instead be run on quantum simulators,
-as was recently demonstrated\cite{wang_experimental_2017}.
+as was recently demonstrated \cite{wang_experimental_2017}.
 
-For online heuristics, Bayes risk (\autoref{eq:bayes-risk})
+For online heuristics, the Bayes' risk (\autoref{eq:bayes-risk})
 is calculated by noting that the
 particle approximation turns all integrals, which includes
 expectations and covariances, into finite sums.
 Some risk calculations for the NV model
 are plotted in \autoref{fig:risk-summary}.
 As seen in the timing diagram in \autoref{fig:online-timing-diagram}, these
-calculations (along with the Bayes updates) are
+calculations (along with the Bayes' updates) are
 performed concurrently with experiments so that they do not
 add to experiment cost\footnote{Of course, this is only
 possible so long as the experiment repetition count is large
 enough compared to the parallelized simulation cost. In our setup, at
 our count rates, we landed naturally in this regime with
 CPU computation a single desktop computer.}.
-This causes the side-effect where the next experiment being chosen with
+This causes the side-effect where the next experiment is selected using
 information that is one cycle out-of-date; however,
 in our simulations at our data collection rates,
 we found that this did not have a noticeable
@@ -696,7 +693,7 @@ Microwaves are transmitted to the NV by an antenna of
 diameter \SI{25}{um} about \SI{100}{um} away from the defect,
 generated by a microwave synthesizer, and shaped by two channels of
 an arbitrary waveform generator (AWG) %(Tektronix AWG 5002)
-that mix via an IQ modulation. %(Marki IQ0255LMP).
+that are mixed with an IQ modulator. %(Marki IQ0255LMP).
 Experimental configurations are manifest as waveforms on the AWG.
 We use a caching strategy, where the experiment computer
 uses a hash table to check if the desired experiment already
@@ -765,7 +762,7 @@ undergo a resampling step defined as
             \matrixtwobyone{\alpha_{n,i}}{\beta_{n_i}},
             \Delta t
             \matrixtwobytwo{\sigma_\alpha^2}{\sigma_{\alpha,\beta}}{\sigma_{\alpha,\beta}}{\sigma_\beta^2}
-            \right)
+            \right),
 \end{align}
 where $\Delta t$ is the amount of time elapsed since the last
 update.
@@ -849,7 +846,7 @@ deviation of our prior for $\alpha$.
         The best Ramsey tip time is defined by
         $\hat{t}_{\text{p,best}}=1/(4\hat{\Omega})$ (rounded to the nearest
         \SI{2}{ns}), where $\hat\Omega$ is the current
-        Bayes estimate of the microwave drive amplitude.
+        Bayes' estimate of the microwave drive amplitude.
         $E_\Rabi(t_{\max},m)$ denotes a set of Rabi experiments with pulse
         times $\tp=t_{\max}/m,2t_{\max}/m,\ldots,t_{\max}$, and
         $E_\Ramsey(\tp, t_{\max},m)$ denotes a set of Ramsey experiments with wait times
@@ -893,13 +890,13 @@ parameters given by
 \begin{subequations}
 \begin{align}
     \Omega/\si{MHz}
-        &\sim \uniformdist\left( [0, 20] \right) \\
+        &\sim \uniformdist\left( [0, 20] \right), \\
     \omega_e/\si{MHz}
-        &\sim \uniformdist\left( [0, 10] \right) \\
+        &\sim \uniformdist\left( [0, 10] \right), \\
     \delta D/\si{MHz}
-        &\sim \uniformdist\left( [-5, 5] \right) \\
+        &\sim \uniformdist\left( [-5, 5] \right), \\
     A/\si{MHz}
-        &\sim \uniformdist\left( [1.5, 3.5] \right) \\
+        &\sim \uniformdist\left( [1.5, 3.5] \right), \\
     T_2^*/\si{\micro\second}
         &\sim \uniformdist\left( [1, 20] \right).
 \end{align}
@@ -920,8 +917,8 @@ phase accumulation between $\ket{+1}$ and $\ket{-1}$, which is
 proportional to $\tw \omega_e$.
 Note that, unconventionally, this heuristic alternates between
 Rabi and Ramsey experiments, as was done in \cite{hincks_statistical_2018}---this improves
-numerical stability of the SMC sampler; different
-experiments being statistically independent, alternation
+numerical stability of the SMC sampler; as different
+experiments are statistically independent, alternation
 does not affect the overall information content.
 The two online experiments differ only in the weighting matrix $Q$ that is used---the
 first weights all quantum system parameters equally, and the second projects risk
@@ -945,15 +942,15 @@ these online heuristics have the extra advantage of being
 more reliable.
 Our guess is that offline heuristics require luckily informative data at certain key
 experiments to perform well, whereas online experiments can simply repeat these key
-experiments many times to avoid the need for luck.
+experiments given an uninformative result.
 Finally, note that the magnetometry focused
 online heuristic slightly
-outperforms the evenly weighted online heuristic ---this
+outperforms the evenly weighted online heuristic---this
 is unsurprising as we happen to be plotting the variance of the magnetometry
 parameter, $\omega_e$.
 
 In the context of magnetometry, it is unrealistic to assume such a
-wide prior as \autoref{eq:wide-prior}.
+wide prior as given in \autoref{eq:wide-prior}.
 More likely, one has already calibrated the quantum device and wants to
 learn only the value of $\omega_e$.
 For example, one might be constructing a magnetic image
@@ -963,12 +960,12 @@ For example, one might be constructing a magnetic image
     rondin_strayfield_2013},
 and each
 pixel of the image requires a new field measurement.
-Therefore, as our second comparison, we place a prior that is tight in all
+Therefore, for our second comparison, we place a prior that is tight in all
 Hamiltonian parameters except $\omega_e$, given as
 \begin{subequations}
 \begin{align}
     \omega_e/\si{MHz}
-        &\sim \uniformdist\left( [0, 10] \right) \\
+        &\sim \uniformdist\left( [0, 10] \right), \\
     (\Omega,\delta D,A,(T_2^*)^{-1})/\si{MHz}
         &\sim \normaldist\left(
             \mu_\calib,
@@ -977,6 +974,33 @@ Hamiltonian parameters except $\omega_e$, given as
 \end{align}
 \label{eq:calibrated-prior}%
 \end{subequations}
+
+\begin{figure*}[t!]
+    \centering
+    \includegraphics[width=\textwidth]{\figurefolder/heuristic-comparison}
+    \caption{Comparison of experiment design heuristics
+    (see \autoref{tab:heuristics}) where each heuristic was run
+    with $100$ independent trials using $200$ experiments per trial.
+    The left figures (a-c) use the wide prior of \autoref{eq:wide-prior},
+    and the right figures (d-f) use the calibrated prior of
+    \autoref{eq:calibrated-prior}.
+    (a,d) For the parameter $\omega_e$, the median posterior variance
+    over 100 trials is plotted (dashed lines), and
+    regions between the $10\%$ and $90\%$ percentiles are shaded.
+    The $x$-axes display ESM (effective strong measurements), where
+    roughly $20$ effective bits of data are collected per experiment,
+    see \autoref{sec:esm-and-drift-tracking}.
+    The black dotted line scales as ESM$^{-1}$.
+    In (b-c,e-f), histograms of which experiments each heuristic uses are
+    shown, normalized to represent the average number of times
+    used per trial.
+    Note that the $y$-axis between histograms is shared, that
+    the scaling switches from linear to logarithmic at $y=5$, and
+    that all four subfigures contain $100$ histogram bins.
+    Additional learning curves are plotted in \autoref{apx:supp-plots-and-data}.
+    }
+    \label{fig:heuristic-comparison}
+\end{figure*}
 where $\mu_\calib$ and $\Sigma_\calib$ are taken
 from the posterior of a set of previously run calibration
 experiments, see \autoref{apx:supp-plots-and-data} for
@@ -1023,32 +1047,6 @@ perform Ramsey experiments with arbitrarily long wait times, but
 finite $T_2^*$ makes such experiments uninformative
 \cite{ferrie_how_2013}.
 
-\begin{figure*}
-    \centering
-    \includegraphics[width=\textwidth]{\figurefolder/heuristic-comparison}
-    \caption{Comparison of experiment design heuristics
-    (see \autoref{tab:heuristics}) where each heuristic was run
-    with $100$ independent trials using $200$ experiments per trial.
-    The left figures (a-c) use the wide prior of \autoref{eq:wide-prior},
-    and the right figures (d-f) use the calibrated prior of
-    \autoref{eq:calibrated-prior}.
-    (a,d) For the parameter $\omega_e$, the median posterior variance
-    over 100 trials is plotted (dashed lines), and
-    regions between the $10\%$ and $90\%$ percentiles are shaded.
-    The $x$-axes display ESM (effective strong measurements), where
-    roughly $20$ effective bits of data are collected per experiment,
-    see \autoref{sec:esm-and-drift-tracking}.
-    The black dotted line scales as ESM$^{-1}$.
-    In (b-c,e-f), histograms of which experiments each heuristic uses are
-    shown, normalized to represent the average number of times
-    used per trial.
-    Note that the $y$-axis between histograms is shared, that
-    the scaling switches from linear to logarithmic at $y=5$, and
-    that all four subfigures contain $100$ histogram bins.
-    Additional learning curves are plotted in \autoref{apx:supp-plots-and-data}.
-    }
-    \label{fig:heuristic-comparison}
-\end{figure*}
 
 %=============================================================================
 \section{Conclusions}
@@ -1064,8 +1062,8 @@ previous experiments to choose the next experiment adaptively.
 Heuristics are summarized in \autoref{tab:heuristics}.
 All data analysis was done with sequential Bayesian inference,
 and all online heuristics were based on minimizing the
-weighted Bayes risk over a collection of possible experiments.
-Heuristics were compared by running each 100 independent times, and comparing
+weighted Bayes' risk over a collection of possible experiments.
+Heuristics were compared by running 100 independent trials of each, and comparing
 the reduction in posterior variance of certain parameters as a function of
 the number of experiments performed.
 
@@ -1083,7 +1081,7 @@ it is for the offline heuristic called Alternating Linear.
 Next, in the case of a prior that is tight on all paramaters except $\omega_e$
 (\subref{fig:heuristic-comparison}{(d-f)}), we found about an order of
 magnitude of improvement between the best online heuristic and the
-best offline heuristic
+best offline heuristic.
 The use case of this prior is when one wants to use a calibrated NV
 device to measure many magnetic fields.
 
@@ -1106,8 +1104,7 @@ Studies of the sort presented by this paper necessarily suffer from having to
 make an endless number of choices---in the end we had to choose a
 finite number of heuristics to compare, which types of experiments heuristics
 should be allowed to perform, what the hyper-parameters of each heuristic
-should be, what the initial prior over parameters should be, and so on.
-Though these choices are ultimately arbitrary, we attempted to make them
+should be, what the initial prior over parameters should be, and so on. Though these choices are ultimately arbitrary, we attempted to make them
 as reasonable as possible, with the end goal of comparing a fully brute-force
 Bayesian scheme against what have historically been the \emph{de facto}
 methods of characterization.
@@ -1118,7 +1115,7 @@ the heuristic policies in \cite{stenberg_characterization_2016}),
 the advantage of a full-risk based approach is that it doesn't require an
 expert to design a heuristic for every particular combination system and
 protocol.
-Indeed, minimizing Bayes risk, if computationally feasible either with
+Indeed, minimizing Bayes' risk, if computationally feasible either with
 classical or quantum resources, is a sensible approach for practically
 any characterization protocol, from tomography to randomized benchmarking.
 
@@ -1304,7 +1301,7 @@ referenced Poisson model is given by
             \frac{\alpha }{p \alpha -p \beta +\beta }-1 &
             -\frac{(p-1) p}{p (\alpha -\beta )+\beta } &
             \frac{p \alpha +(p-2) (p-1) \beta }{\beta  (p (\alpha -\beta )+\beta )} \\
-        \end{pmatrix}
+        \end{pmatrix},
 \end{align}
 with inverse matrix
 \begin{align}
@@ -1413,12 +1410,12 @@ measured, but with no prior information.
 
 Finally, in \autoref{fig:effective-strong-meas}, we use some numerics
 to show that the $\ESM$
-quantity accurately relates the mean-squared error of the Bayes estimator
+quantity accurately relates the mean-squared error of the Bayes' estimator
 for the referenced Poisson model and a binomial model with $n=\ESM$.
 
 \begin{figure}
     \includegraphics[width=\textwidth]{\figurefolder/effective-strong-meas}
-    \caption{The mean-squared-error of the Bayes estimator is computed
+    \caption{The mean-squared-error of the Bayes' estimator is computed
     as a function of $p$
     for both the referenced Poisson model (blue, solid) and for a binomial model
     (orange, dashed) where $n=\ESM$.
@@ -1431,4 +1428,7 @@ for the referenced Poisson model and a binomial model with $n=\ESM$.
     \label{fig:effective-strong-meas}
 \end{figure}
 
+\section{Brute-force Numerical Evaluation of Bayes' Risk}
+\label{apx:effective-strong-measurements}
+\todo{Insert appendix section}
 \end{document}
