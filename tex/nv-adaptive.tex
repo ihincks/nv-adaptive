@@ -1054,12 +1054,12 @@ finite $T_2^*$ makes such experiments uninformative
 %=============================================================================
 
 We compared the ability of several experiment design heuristics to
-experimentally learn the electronic ground state Hamiltonian of a an
+experimentally learn the electronic ground state Hamiltonian of an
 NV defect in diamond.
 Some of our heuristics were offline---using experiment sweeps that were
 predetermined, and some of heuristics were online---using knowledge gained from
 previous experiments to choose the next experiment adaptively.
-Heuristics are summarized in \autoref{tab:heuristics}.
+The heuristics we used are summarized in \autoref{tab:heuristics}.
 All data analysis was done with sequential Bayesian inference,
 and all online heuristics were based on minimizing the
 weighted Bayes risk over a collection of possible experiments.
@@ -1070,14 +1070,14 @@ the number of experiments performed.
 We found that our online heuristics
 outperformed our offline heuristics; results are summarized in
 \autoref{fig:risk-summary}.
-In particular, in the case that a very wide prior on parameters was used for
-heuristics (\subref{fig:heuristic-comparison}{(a-c)}), we found that the
+In particular, in the case of a very wide prior on all parameters
+(\subref{fig:heuristic-comparison}{(a-c)}), we found that the
 median posterior variance of the parameter $\omega_e$---which is proportional
 to the external magnetic field's projection onto the z-axis---is over two
 orders of magnitude smaller after 200 experiments (comprising ~200 effective
 strong measurements per experiment) for the online heuristic called
-Magnetometry Weighted Risk heuristic than
-it is for the offline heuristic called Alternating Linear.
+\emph{Magnetometry Weighted Risk} than
+it is for the offline heuristic called \emph{Alternating Linear}.
 Next, in the case of a prior that is tight on all paramaters except $\omega_e$
 (\subref{fig:heuristic-comparison}{(d-f)}), we found about an order of
 magnitude of improvement between the best online heuristic and the
@@ -1097,7 +1097,7 @@ This is seen in the tighter 80\% percentile regions of
 \subref{fig:heuristic-comparison}{(a,d)} for online experiments.
 For example, the difference in the final posterior variance of the parameter
 $\omega_e$ varies by as much as four orders of magnitude between
-independent trials for the Ramsey Sweeps protocol, whereas it
+independent trials for the \emph{Ramsey Sweeps} heuristic, whereas it
 always varies by less than one order of magnitude for all online heuristics.
 
 Studies of the sort presented by this paper necessarily suffer from having to
@@ -1167,24 +1167,25 @@ Research, and the Province of Ontario.
 The calibration prior of \autoref{eq:calibrated-prior} was generated
 by processing two trials of the Alternating Linear heuristic, for
 a total of 400 experiments, and roughly 8000 ESM.
-The first two moments of the posterior distribution were computed,
-and marginalizing over the parameter $\omega_e$, resulted in
+The first two moments of the posterior distribution were computed, resulting in
 the values
 \begin{subequations}
 \begin{align}
     \mu_\calib&=\begin{pmatrix}
         11.55 \\ -0.86 \\ 2.18 \\ 0.35
-    \end{pmatrix} \\
+    \end{pmatrix}
+    \si{MHz} \\
     \Sigma_\calib&=\begin{pmatrix}
         \num{2.56e-05} & \num{1.02e-03} & \num{7.67e-07} & \num{3.80e-05} \\
         \num{1.02e-03} & \num{1.06e-01} & \num{1.97e-04} & \num{2.50e-03} \\
         \num{7.67e-07} & \num{1.97e-04} & \num{7.51e-05} & \num{-1.02e-04} \\
         \num{3.80e-05} & \num{2.50e-03} & \num{-1.02e-04} & \num{1.01e-03}
-        \end{pmatrix}
+    \end{pmatrix}
+    \si{MHz^2}
 \end{align}
 \end{subequations}
-for the parameters $(\Omega,\delta D,A,(T_2^*)^{-1})$, in units
-of $\si{MHz}$ and $\si{MHz^2}$ for the mean and covariance, respectively.
+for the ordered parameters $(\Omega,\delta D,A,(T_2^*)^{-1})$,
+where $\omega_e$ and nuissance parameters ham been marginalized over.
 
 In \autoref{fig:heuristic-comparison}, only the learning rates of
 $\omega_\text{e}$ are reported---in \autoref{fig:param-learning-rates} and
