@@ -351,12 +351,14 @@ the possible experiment configuration $\eps$ is
 \begin{align}
     U_n(\data,\eps)
         &= \int \pi_n(\mps)U_n(\mps,\data,\eps)\dd\mps.
+\label{eq:future-utility}
 \end{align}
 Since we do not know \textit{a priori} which $\data$ will
 occur the average utility of the possible configuration $\eps$ as a whole is
 \begin{align}
     U_n(\eps)
         &= \int\Pr(\data|\eps)U_n(\data,\eps) \dd\data,
+\label{eq:average-utility}
 \end{align}
 where $\Pr(\data|\eps)=\int \Pr(\data|\mps,\eps)\pi_n(\mps)\dd\mps$ is the
 predictive distribution.
@@ -411,7 +413,7 @@ When in its stable negatively charged configuration, NV$^-$,
 the vacancy is filled with
 six electrons that form an effective spin-1 particle in the optical
 ground state---this three level subspace comprises the system of interest.
-The eigenstates are labeled $\ket{1}$, $\ket{0}$, and $\ket{-1}$, respectively
+The eigenstates are labelled $\ket{1}$, $\ket{0}$, and $\ket{-1}$, respectively
 corresponding to the eigenvalues of the spin-1 operator $\Sz=\diag(1,0,-1)$.
 There is a zero field splitting (ZFS) of $D\approx\SI{2.87}{GHz}$
 between $\ket{0}$ and the $\operatorname{span}(\ket{-1},\ket{+1})$ manifold
@@ -1432,5 +1434,34 @@ for the referenced Poisson model and a binomial model with $n=\ESM$.
 
 \section{Brute-force Numerical Evaluation of Bayes Risk}
 \label{apx:brute-force-bayes-risk}
-\todo{Insert appendix section}
+Evaluating the full Bayes risk for continuous outcome probability distributions is often not possible analytically apart from special cases such as linear models with a normal likelihood function. For finite outcome probability distributions the problem is more tractable, however as the number of possible outcomes grows large, or even infinite---including the Poisson distributions considered within this paper---the evaluation once again becomes intractable.
+
+The difficulty of evaluation is due to the expectation taken in \autoref{eq:bayes-risk}. For both infinite-discrete and continuous outcome probability distributions the expectation is intractable, however for finite discrete distributions the expectation is simply a bounded discrete sum and trivial to evaluate numerically. We therefore aim to approximately evaluate the Bayes risk by approximating the possible outcomes with a finite, discrete set of outcomes---note that this technique may also be used when the set of possible outcomes is finite but large enough to be computationally intractable. In short typically outcome domains are large with outcome probability mass concentrated to a small portion of the outcome domain, by fixing particle locations and sampling outcomes from these particles, we may evaluate the risk for only the outcomes that ``matter'' within the regions of high outcome probability mass. 
+
+We consider the case of evaluating the Bayes risk for the next $n_e$ experiments, $e_{1:n_e}$. We begin by re-approximating the particle filter prior distribution with a uniformly weighted particle distribution by sampling $K'$ particles from the prior $\pi_{n-1}$,
+
+\begin{equation}
+x_j \sim \pi(x)_{n-1}.
+\end{equation}
+Thus approximating the prior as 
+\begin{equation}
+\pi_{n-1}(x) \approx \frac{1}{n_p} \sum \limits_{i}^{n_p}\delta \left(x-x_i\right).
+\label{eq:approx_particle_filter}
+\end{equation}
+For each particle we now sample a datum from the likelihood function for each experiment, 
+\begin{equation}
+d_{1:n_e}^{(j)} \sim \Lhood \left(x_j;d_{1:n_e},e_{1:n}\right)\quad\quad \forall \ x_j \in x_{1:K'}.
+\end{equation}
+The set of sampled data is an approximation to the joint outcome, particle distribution marginalized with respect to the particle probability, 
+\begin{equation}
+\Pr(d_{1:n_e}) \approx \frac{1}{n_p}\sum \limits_{i}^{K'} \delta(d_{1:n_e}-d_{1:n_e}^{(i)}).
+\end{equation}
+The average utility---\autoref{eq:average-utility}---may be expanded in conjunction with---\autoref{eq:future-utility}---as 
+\begin{align}
+    r_{n,Q}(\eps) &= \Tr Q\expect_\data[\Cov_{\tilde{\pi}}
+        [\mps|\data,\eps]] \nonumber\\
+    &= U_n(\eps)
+        &= \int\Pr(\data|\eps)U_n(\data,\eps) \dd\data,
+    \label{eq:bayes-risk-expanded}
+\end{align}
 \end{document}
