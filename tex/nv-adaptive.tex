@@ -1502,9 +1502,15 @@ r_{n,Q}(\eps_{1:n_e}) &\approx \frac{1}{K'}\sum \limits_i^{K'}  \Tr\left[ Q  \Co
 \end{align}
 where $\widehat{x^Tx}_i=\sum \limits_{j}^K\omega_{n+1|\data_{1:n_e}^{(i)},j}x_j^Tx_j$, and $\hat{x}_i=\sum \limits_{j}^K\omega_{n+1|\data_{1:n_e}^{(i)},j}x_j$. 
 
-In general the the initial prior distribution may be downsampled to some number of particles $K$, such that we now have two parameters that may be tuned, the number of outcome samples $K'$, and the number of model parameter particles $K$. With the MIS Bayes risk, the number of likelihood function calls is now $O(KK')$, with only $O(K')$ outcome samples required. 
+In general the the initial prior distribution may be downsampled to some number of particles $K$, such that we now have two parameters that may be tuned, the number of outcome samples $K'$, and the number of model parameter particles $K$. With the MIS Bayes risk, the number of likelihood function calls is now $O(KK')$, with only $O(K')$ outcome samples required. We utilize the MIS Bayes risk for experiment design within this paper.   
 
-In practice a tradeoff between accuracy and computational cost is necessary.
+In practice a tradeoff between accuracy and computational cost/time is necessary when selecting the number of outcome and particle samples, $K'$ and $K$ respectively for the evaluation of the MIS Bayes risk. A comparison of various sampling numbers is displayed in the heatmaps of \autoref{fig:computational-cost-heatmap}, which were evaluated with the wide prior of \autoref{eq:wide-prior} and experiments for the uniformly weighted Bayes risk experiment design heuristic given in \autoref{tab:heuristics}. The aquistion of 4000 \ESM takes roughly 10 seconds, as the full particle filter update of 30000 particles takes roughly 2 seconds, there are 8 seconds remaining in which to compute the Bayes risk and select the optimal experiment. We use $K'=512$ outcome samples and $K=1024$ particle filter samples, as this strikes the best balance between accuracy while keeping the evaluation time below our threshold on our computational hardware. As this problem is massively parallel, if desired it is simple to use additional computational resources to refine to the evaluation accuracy. 
+
+\begin{figure*}
+    \includegraphics[width=\textwidth]{\figurefolder/full_risk_sampling_numbers}
+    \caption{Comparison of various outcome and particle sampling accuracies and times when evaluating the MIS Bayes risk. The prior distribution over model parameters is given by \autoref{eq:wide-prior}, and the experiments which the Bayes' risk is computed for is uniformly weighted experiment design risk heuristic found in \autoref{tab:heuristics}. (a) Log mean squared difference for all experiments computed with respect to a 4000 outcome, 4000 particle reference evaluation. (b) Log evaluation time(s) of Bayes risk over all experiments for a given number of outcome and particle samples.}
+    \label{fig:computational-cost-heatmap}
+\end{figure*}
 
   
 \end{document}
