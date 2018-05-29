@@ -350,14 +350,17 @@ the average utility of observing $\data$ at step $n+1$ under
 the possible experiment configuration $\eps$ is
 \begin{align}
     U_n(\data,\eps)
-        &= \int \pi_n(\mps)U_n(\mps,\data,\eps)\dd\mps.
+        &= \int \tilde{\pi}_{n,\data,\eps}(\mps)U_n(\mps,\data,\eps)\dd\mps.
 \label{eq:future-utility}
 \end{align}
+where
+$\tilde{\pi}_{n,\data,\eps}(\mps)\propto \Lhood(\mps;\data,\eps)\pi_n(\mps)$
+is the hypothetical posterior at step $n+1$ assuming $\data$ will be observed.
 Since we do not know \textit{a priori} which $\data$ will
-occur the average utility of the possible configuration $\eps$ as a whole is
+occur, the average utility of the possible configuration $\eps$ as a whole is
 \begin{align}
     U_n(\eps)
-        &= \int\Pr(\data|\mps,\eps)U_n(\data,\eps) \dd\data.
+        &= \int\Pr(\data|\eps) U_n(\data,\eps) \dd\data.
 \label{eq:average-utility}
 \end{align}
 Based on this quantity we can choose the next experiment to be
@@ -367,6 +370,15 @@ the one that maximizes the utility,
 \end{align}
 with the maximum taken over some space of possible experiments.
 If computed numerically, we might only hope to find local maxima.
+Note that
+\begin{align}
+    \tilde{\pi}_{n,\data,\eps}(\mps)\Pr(\data|\eps)
+        =\Pr(\mps,\data|\mps_{1:n},\data_{1:n},\eps),
+\end{align}
+and therefore $U_n(\eps)$ is the joint average over $\mps$ and $\data$ of
+$U_n(\mps,\data,\eps)$ given the current state knowledge---a description
+some may prefer to the above two-step description involving
+the intermediate quantity $U_n(\data,\eps)$.
 
 One can consider different choices of utility function $U$.
 When the application is inference of a non-linear system, such as
@@ -379,13 +391,9 @@ In particular, we choose $U_n=-r_{n,Q}$ where
 \end{align}
 where $Q$ is a positive semi-definite weighting matrix.
 Here, $\hat{\mps}_{n,\data,\eps}=\int \mps \tilde{\pi}_{n,\data,\eps}(\mps)\dd\mps$
-is the Bayes estimator of $\mps$ based on the posterior distribution
-$\tilde{\pi}_{n,\data,\eps}(\mps)\propto \Lhood(\mps;\data,\eps)\pi_n(\mps)$
-given hypothetical data $\data$.
-In this case, after a bit of rearranging,
-$r_{n,Q}(\eps)$ has the simple interpretation
-of being the expected posterior covariance matrix weighted
-against $Q$,
+is the Bayes estimator of $\mps$.
+In this case, $r_{n,Q}(\eps)$ has the simple interpretation of being the
+expected posterior covariance matrix weighted against $Q$,
 \begin{align}
     r_{n,Q}(\eps) = \Tr \left[Q\expect_\data[\Cov_{\tilde{\pi}}
         [\mps|\data,\eps]]\right],
@@ -1462,9 +1470,9 @@ We begin by re-approximating the particle filter prior distribution with a
 uniformly weighted particle distribution by sampling $K'$ particles from the
 prior $\pi_{n}$,
 \begin{equation}
-    \mps_j \sim \pi_{n}(\mps).
+    \mps_j \sim \pi_{n}(\mps),
 \end{equation}
-Thus approximating the prior as
+thereby approximating the prior as
 \begin{equation}
     \pi_{n-1}(\mps) \approx \frac{1}{K'}
         \sum \limits_{i}^{K'}\delta \left(\mps-\mps_i\right).
