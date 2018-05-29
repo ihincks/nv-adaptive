@@ -1434,65 +1434,65 @@ for the referenced Poisson model and a binomial model with $n=\ESM$.
 \label{apx:brute-force-bayes-risk}
 Evaluating the full Bayes risk for continuous outcome probability distributions is often not possible analytically apart from special cases such as linear models with a normal likelihood function. For finite outcome probability distributions the problem is more tractable, however as the number of possible outcomes grows large, or even infinite---such as the Poisson distributions considered within this paper---the evaluation once again becomes intractable.
 
-The difficulty of evaluation is a result of the expectation taken in \autoref{eq:bayes-risk}. For both infinite-discrete and continuous outcome probability distributions the expectation is intractable, however for finite discrete distributions, the expectation is a bounded discrete sum and trivial to evaluate numerically. We, therefore, aim to evaluate the Bayes risk by approximating the possible outcomes with a finite, discrete set of outcomes---note that this technique may also be used when the set of possible outcomes is finite but large enough to be computationally intractable. In short, typically outcome domains are large with outcome probability mass concentrated to a small portion of the outcome domain, by fixing particle locations and sampling outcomes from these particles, we may evaluate the risk for only the outcomes that ``matter'' within the regions of outcome probability mass concentration. 
+The difficulty of evaluation is a result of the expectation taken in \autoref{eq:bayes-risk}. For both infinite-discrete and continuous outcome probability distributions the expectation is intractable, however for finite discrete distributions, the expectation is a bounded discrete sum and trivial to evaluate numerically. We, therefore, aim to evaluate the Bayes risk by approximating the possible outcomes with a finite, discrete set of outcomes---note that this technique may also be used when the set of possible outcomes is finite but large enough to be computationally intractable. In short, typically, outcome domains are large with outcome probability mass concentrated to a small portion of the outcome domain, by fixing particle locations and sampling outcomes from these particles, we may evaluate the risk for only the outcomes that ``matter'' within the regions of outcome probability mass concentration.
 
 We consider the case of evaluating the Bayes risk for the next $n_e$ experiments, $\eps_{1:n_e}$. We begin by re-approximating the particle filter prior distribution with a uniformly weighted particle distribution by sampling $K'$ particles from the prior $\pi_{n}$,
 
 \begin{equation}
-\mps_j \sim \pi(\mps)_{n}.
+\mps_j \sim \pi_{n}(\mps).
 \end{equation}
-Thus approximating the prior as 
+Thus approximating the prior as
 \begin{equation}
 \pi_{n-1}(\mps) \approx \frac{1}{K'} \sum \limits_{i}^{K'}\delta \left(\mps-\mps_i\right).
 \label{eq:approx_particle_filter}
 \end{equation}
-For each particle we now sample a datum from the likelihood function for each experiment, 
+For each particle we now sample a datum from the likelihood function for each experiment,
 \begin{equation}
-\data_{1:n_e}^{(j)} \sim \Lhood \left(\mps_j;d_{1:n_e},\eps_{1:n}\right)\quad\quad \forall \ \mps_j \in \mps_{1:K'}.
+\data_{1:n_e}^{(j)} \sim \Lhood \left(\mps_j;\data_{1:n_e},\eps_{1:n}\right)\quad\quad \forall \ \mps_j \in \mps_{1:K'}.
 \end{equation}
-The set of sampled data is an approximation to the joint outcome, particle distribution 
+The set of sampled data is an approximation to the joint outcome, particle distribution
 \begin{equation}
 \Pr(\data_{1:n_e},\mps) \approx \frac{1}{K'}\sum \limits_{i}^{K'} \delta \left(\data_{1:n_e}-\data_{1:n_e}^{(i)}\right)\delta\left(\mps-\mps_i\right).
 \label{eq:sampled-joint-distribution}
 \end{equation}
-The average utility---\autoref{eq:average-utility}---may be expanded in conjunction with---\autoref{eq:future-utility}---as 
+The average utility---\autoref{eq:average-utility}---may be expanded in conjunction with---\autoref{eq:future-utility}---as
 \begin{align}
     U_n(\eps_{1:n_e})
         &= \int\int \Pr(\data_{1:n_e}|\mps,\eps)\pi_n(\mps)U_n(\mps,\data,\eps)\dd\mps \dd\data_{1:n_e} \nonumber\\
         &= \int\int \Pr(\data_{1:n_e},\mps|\eps)U_n(\mps,\data,\eps_{1:n_e})\dd\mps \dd\data_{1:n_e}.
 \label{eq:average-utility-expanded}
 \end{align}
-The approximate particle, datum joint distribution, \eqref{eq:sampled-joint-distribution} may be substituted into \eqref{eq:average-utility-expanded} and the integrals are thus replaced by a sum, 
+The approximate particle, datum joint distribution, \eqref{eq:sampled-joint-distribution} may be substituted into \eqref{eq:average-utility-expanded} and the integrals are thus replaced by a sum,
 \begin{align}
 U_n(\eps_{1:n_e}) \approx \frac{1}{K'} \sum \limits_i^{K'} U_n(\mps,\data_{1:n_e},\eps_{1:n_e}),
 \end{align}
-which is the average utility of the joint sampled particle, datum distribution. When the utility is the negative mean-squared error the Bayes risk has the approximate form 
+which is the average utility of the joint sampled particle, datum distribution. When the utility is the negative mean-squared error the Bayes risk has the approximate form
 \begin{align}
     r_{n,Q}(\eps_{1:n_e}) \approx \frac{1}{K'}\sum \limits_i^{K'} \Tr Q(\mps_i - \hat\mps_{n,\data_i,\eps})^\T(\mps_i - \hat\mps_{n,\data_i,\eps}),
     \label{eq:bayes-risk-sampled}
-\end{align} 
+\end{align}
 where $\hat\mps_{n,\data_i,\eps}$ is the posterior mean given the the approximate prior \eqref{eq:approx_particle_filter},
 \begin{align}
 \hat\mps_{n,\data_j,\eps} = \sum \limits_i^{K'} \frac{\Lhood \left(\mps_i;d_{1:n_e}^{(j)},\eps_{1:n_e}\right)}{K'}\mps_i.
 \end{align}
-The evaluation of the Bayes risk requires on the order of $O(K'^2)$ likelihood evaluations. However, typically a large number of outcome samples will be required to effectively sample the outcome domain of each particle and the total number of outcome samples will roughly be $O(Kn_d)$, where $n_d$ is roughly the average number of outcome datum desired per particle. This may be prohibitively large when sampling is expensive. 
+The evaluation of the Bayes risk requires on the order of $O(K'^2)$ likelihood evaluations. However, typically a large number of outcome samples will be required to effectively sample the outcome domain of each particle and the total number of outcome samples will roughly be $O(Kn_d)$, where $n_d$ is roughly the average number of outcome datum desired per particle. This may be prohibitively large when sampling is expensive.
 
-Provided the outcome domain does not depend on the experiment---as is the case for our experiments---we may perform maximum importance sampling (MIS) to sample outcomes from an alternative distribution---chiefly the marginalized outcome distribution $\Pr(d_{1:n_e})$---and properly re-weight the resultant utility functions \cite{UeberhuberNumericalComputationMethods1997}. 
+Provided the outcome domain does not depend on the experiment---as is the case for our experiments---we may perform maximum importance sampling (MIS) to sample outcomes from an alternative distribution---chiefly the marginalized outcome distribution $\Pr(d_{1:n_e})$---and properly re-weight the resultant utility functions \cite{UeberhuberNumericalComputationMethods1997}.
 
 The sampled outcome distribution $\Pr(d_{1:n_e})$ is obtained from the sampled $\Pr(\data_{1:n_e},\mps)$ by neglecting the associated model parameter,
 \begin{equation}
 \Pr(\data_{1:n_e}) \approx \frac{1}{K'}\sum \limits_{i}^{K'} \delta \left(\data_{1:n_e}-\data_{1:n_e}^{(i)}\right).
 \label{eq:sampled-marginalized-distribution}
 \end{equation}
-The MIS utility is given as 
+The MIS utility is given as
 \begin{align}
     U_n(\eps)
-        &= \int\int \Pr(\data_{1:n_e}|\mps,\eps_{1:n_e})\pi_n(\mps)\frac{\Pr(\data_{1:n_e})}{\Pr(\data_{1:n_e})}U_n(\mps,\data_{1:n_e},\eps_{1:n_e})\dd\mps \dd\data_{1:n_e} \nonumber\\     
+        &= \int\int \Pr(\data_{1:n_e}|\mps,\eps_{1:n_e})\pi_n(\mps)\frac{\Pr(\data_{1:n_e})}{\Pr(\data_{1:n_e})}U_n(\mps,\data_{1:n_e},\eps_{1:n_e})\dd\mps \dd\data_{1:n_e} \nonumber\\
 &\approx \frac{1}{K'}\sum \limits_{i}^{K'}\sum \limits_{j}^{K} \frac{\Pr(\data_{1:n_e}^{(i)}|\mps_j,\eps_{1:n_e})\omega_{n,j}}{\Pr(\data_{1:n_e})^{(i)}}U_n(\mps_j,\data_{1:n_e}^{(i)},\eps_{1:n_e})\nonumber \\
 &= \frac{1}{K'}\sum \limits_{i}^{K'}\sum \limits_{j}^{K} \omega_{n+1|\data_{1:n_e}^{(i)},j}U_n(\mps_j,\data_{1:n_e}^{(i)},\eps_{1:n_e}).
 \label{eq:mis-average-utility-expanded}
 \end{align}
-Where the judicious choice of the sampling distribution has allowed the utility to be written as the average of the posterior utility expectation  over the marginalized outcome distribution. For the case of the Bayes risk this may be further simplified to 
+Where the judicious choice of the sampling distribution has allowed the utility to be written as the average of the posterior utility expectation  over the marginalized outcome distribution. For the case of the Bayes risk this may be further simplified to
 
 \begin{align}
 r_{n,Q}(\eps_{1:n_e}) &\approx \frac{1}{K'}\sum \limits_i^{K'}  \Tr\left[ Q  \Cov_{\tilde{\pi}}
@@ -1500,11 +1500,11 @@ r_{n,Q}(\eps_{1:n_e}) &\approx \frac{1}{K'}\sum \limits_i^{K'}  \Tr\left[ Q  \Co
         &=\frac{1}{K'}\sum \limits_i^{K'}  \Tr\left[ Q(\widehat{x^Tx}_{i}-\hat{x}_i^T\hat{x}_i)\right],
 \label{eq:mis-bayes-risk-sampled}
 \end{align}
-where $\widehat{x^Tx}_i=\sum \limits_{j}^K\omega_{n+1|\data_{1:n_e}^{(i)},j}x_j^Tx_j$, and $\hat{x}_i=\sum \limits_{j}^K\omega_{n+1|\data_{1:n_e}^{(i)},j}x_j$. 
+where $\widehat{x^Tx}_i=\sum \limits_{j}^K\omega_{n+1|\data_{1:n_e}^{(i)},j}x_j^Tx_j$, and $\hat{x}_i=\sum \limits_{j}^K\omega_{n+1|\data_{1:n_e}^{(i)},j}x_j$.
 
-In general the the initial prior distribution may be downsampled to some number of particles $K$, such that we now have two parameters that may be tuned, the number of outcome samples $K'$, and the number of model parameter particles $K$. With the MIS Bayes risk, the number of likelihood function calls is now $O(KK')$, with only $O(K')$ outcome samples required. We utilize the MIS Bayes risk for experiment design within this paper.   
+In general the the initial prior distribution may be downsampled to some number of particles $K$, such that we now have two parameters that may be tuned, the number of outcome samples $K'$, and the number of model parameter particles $K$. With the MIS Bayes risk, the number of likelihood function calls is now $O(KK')$, with only $O(K')$ outcome samples required. We utilize the MIS Bayes risk for experiment design within this paper.
 
-In practice a tradeoff between accuracy and computational cost/time is necessary when selecting the number of outcome and particle samples, $K'$ and $K$ respectively for the evaluation of the MIS Bayes risk. A comparison of various sampling numbers is displayed in the heatmaps of \autoref{fig:computational-cost-heatmap}, which were evaluated with the wide prior of \autoref{eq:wide-prior} and experiments for the uniformly weighted Bayes risk experiment design heuristic given in \autoref{tab:heuristics}. The aquistion of 4000 \ESM takes roughly 10 seconds, as the full particle filter update of 30000 particles takes roughly 2 seconds, there are 8 seconds remaining in which to compute the Bayes risk and select the optimal experiment. We use $K'=512$ outcome samples and $K=1024$ particle filter samples, as this strikes the best balance between accuracy while keeping the evaluation time below our threshold on our computational hardware. As this problem is massively parallel, if desired it is simple to use additional computational resources to refine to the evaluation accuracy. 
+In practice a tradeoff between accuracy and computational cost/time is necessary when selecting the number of outcomes and particle samples, $K'$ and $K$ respectively for the evaluation of the MIS Bayes risk. A comparison of various sampling numbers is displayed in the heatmaps of \autoref{fig:computational-cost-heatmap}, which were evaluated with the wide prior of \autoref{eq:wide-prior} and experiments for the uniformly weighted Bayes risk experiment design heuristic given in \autoref{tab:heuristics}. The aquistion of 4000 \ESM\ takes roughly 10 seconds, as the full particle filter update of 30000 particles takes roughly 2 seconds, there are 8 seconds remaining in which to compute the Bayes risk and select the optimal experiment. We use $K'=512$ outcome samples and $K=1024$ particle filter samples, as this strikes the best balance between accuracy while keeping the evaluation time below our threshold on our computational hardware. As this problem is massively parallel, if desired it is simple to use additional computational resources to refine to the evaluation accuracy.
 
 \begin{figure*}
     \includegraphics[width=\textwidth]{\figurefolder/full_risk_sampling_numbers}
@@ -1512,7 +1512,7 @@ In practice a tradeoff between accuracy and computational cost/time is necessary
     \label{fig:computational-cost-heatmap}
 \end{figure*}
 
-  
+
 \end{document}
 
 \end{document}
