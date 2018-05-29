@@ -363,6 +363,8 @@ occur, the average utility of the possible configuration $\eps$ as a whole is
         &= \int\Pr(\data|\eps) U_n(\data,\eps) \dd\data.
 \label{eq:average-utility}
 \end{align}
+where $\Pr(\data|\eps)=\int \Pr(d|x,e)\pi(x)\dd x$ is the predictive
+distribution.
 Based on this quantity we can choose the next experiment to be
 the one that maximizes the utility,
 \begin{align}
