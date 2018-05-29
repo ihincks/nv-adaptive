@@ -39,6 +39,7 @@
 *.pdf
 !fig/*.pdf
 *.bak
+*.fls
 
 ## Temporary files ##
 *~
