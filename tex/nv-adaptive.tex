@@ -1483,14 +1483,13 @@ prior $\pi_{n}$,
 \begin{equation}
     \mps_j \sim \pi_{n}(\mps),
 \end{equation}
-thereby producing
+which approximates the prior $\pi_{n}$ as
 \begin{equation}
     \pi_n(\mps) \approx \frac{1}{K'}
         \sum \limits_{i}^{K'}\delta \left(\mps-\mps_i\right).
     \label{eq:approx_particle_filter}
 \end{equation}
-For each particle we now sample a datum from the likelihood function for each
-experiment,
+For each particle we now sample a datum from the likelihood function,
 \begin{equation}
     \data^{(j)} \sim
         \Lhood \left(
@@ -1569,12 +1568,12 @@ The MIS utility is given as
 \begin{align}
     U_n(\eps)
         &= \int\int \Pr(\data|\mps,\eps)\pi_n(\mps)
-            \frac{\Pr(\data)}{\Pr(\data)}
+            \frac{\Pr(\data|\eps)}{\Pr(\data|\eps)}
             U_n(\mps,\data,\eps)
             \dd\mps \dd\data \nonumber\\
         &\approx \frac{1}{K'}\sum \limits_{i}^{K'}\sum \limits_{j}^{K}
             \frac{\Pr(\data^{(i)}|\mps_j,\eps)\omega_{n,j}}{
-            \Pr(\data^{(i)})}
+            \Pr(\data^{(i)}|\eps)}
             U_n(\mps_j,\data^{(i)},\eps)\nonumber \\
         &= \frac{1}{K'}\sum \limits_{i}^{K'}\sum \limits_{j}^{K} \omega_{n+1|
             \data^{(i)},j}U_n(\mps_j,\data^{(i)},\eps),
