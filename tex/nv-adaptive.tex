@@ -364,7 +364,15 @@ occur, the average utility of the possible configuration $\eps$ as a whole is
 \label{eq:average-utility}
 \end{align}
 where $\Pr(\data|\eps)=\int \Pr(d|x,e)\pi_n(x)\dd x$ is the predictive
-distribution.
+distribution\footnote{Note that
+$
+    \tilde{\pi}_{n,\data,\eps}(\mps)\Pr(\data|\eps)
+        =\Pr(\mps,\data|\mps_{1:n},\data_{1:n},\eps),
+$
+and therefore $U_n(\eps)$ is the joint average over $\mps$ and $\data$ of
+$U_n(\mps,\data,\eps)$ given the current state knowledge---this is a description
+some may prefer to the two-step description involving
+the intermediate quantity $U_n(\data,\eps)$ provided in the main-body.}.
 Based on this quantity we can choose the next experiment to be
 the one that maximizes the utility,
 \begin{align}
@@ -372,15 +380,6 @@ the one that maximizes the utility,
 \end{align}
 with the maximum taken over some space of possible experiments.
 If computed numerically, we might only hope to find local maxima.
-Note that
-\begin{align}
-    \tilde{\pi}_{n,\data,\eps}(\mps)\Pr(\data|\eps)
-        =\Pr(\mps,\data|\mps_{1:n},\data_{1:n},\eps),
-\end{align}
-and therefore $U_n(\eps)$ is the joint average over $\mps$ and $\data$ of
-$U_n(\mps,\data,\eps)$ given the current state knowledge---a description
-some may prefer to the above two-step description involving
-the intermediate quantity $U_n(\data,\eps)$.
 
 One can consider different choices of utility function $U$.
 When the application is inference of a non-linear system, such as
