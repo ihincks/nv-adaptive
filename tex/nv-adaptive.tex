@@ -401,7 +401,8 @@ expected posterior covariance matrix weighted against $Q$,
     \label{eq:bayes-risk}
 \end{align}
 a quantity known as the $Q$-weighted
-mean-squared-error \textit{Bayes risk}.
+mean-squared-error \textit{Bayes risk}, and some numerical implementation
+details are outlined in \autoref{apx:brute-force-bayes-risk}.
 
 %=============================================================================
 \section{Nitrogen Vacancy System Model}
@@ -658,10 +659,10 @@ with $K=30000$ particles.
 In principle, simulations could instead be run on quantum simulators,
 as was recently demonstrated \cite{wang_experimental_2017}.
 
-For online heuristics, the Bayes risk (\autoref{eq:bayes-risk})
-is calculated by noting that the
-particle approximation turns all integrals, which includes
-expectations and covariances, into finite sums.
+For online heuristics, the Bayes risk (\autoref{eq:bayes-risk}) is calculated by
+noting that the particle approximation turns all integrals, which includes
+expectations and covariances, into finite sums---see
+\autoref{apx:brute-force-bayes-risk} for details.
 Some risk calculations for the NV model
 are plotted in \autoref{fig:risk-summary}.
 As seen in the timing diagram in \autoref{fig:online-timing-diagram}, these
@@ -1439,8 +1440,10 @@ for the referenced Poisson model and a binomial model with $n=\ESM$.
     \label{fig:effective-strong-meas}
 \end{figure}
 
+%=============================================================================
 \section{Brute-force Numerical Evaluation of Bayes Risk}
 \label{apx:brute-force-bayes-risk}
+%=============================================================================
 
 Evaluating the full Bayes risk for continuous outcome probability distributions
 is often not possible analytically apart from special cases such as linear
