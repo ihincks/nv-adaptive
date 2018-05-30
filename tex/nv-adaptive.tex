@@ -1466,46 +1466,51 @@ locations and sampling outcomes from these particles, we may evaluate the risk
 for only the outcomes that ``matter'' within the regions of outcome probability
 mass concentration.
 
-We consider the case of evaluating the Bayes risk for the next $n_e$
-experiments, $\eps_{1:n_e}$.
+We consider the case of evaluating the Bayes risk for the next experiment, $e$.
+We assume throughout this discussion, that this hypothetical experiment $e$
+was preceded by $n$ experiments $\eps_{1:n}$ with corresponding data
+$\data_{1:n}$.
+In several places, for brevity of notation, we will omit conditioning
+on this prior information, for example, we have
+$\Pr(\data|\eps)=\Pr(\data|\eps,\data_{1:n},\eps_{1:n})$.
 We begin by re-approximating the particle filter prior distribution with a
 uniformly weighted particle distribution by sampling $K'$ particles from the
 prior $\pi_{n}$,
 \begin{equation}
     \mps_j \sim \pi_{n}(\mps),
 \end{equation}
-thereby approximating the prior as
+thereby producing
 \begin{equation}
-    \pi_{n-1}(\mps) \approx \frac{1}{K'}
+    \pi_n(\mps) \approx \frac{1}{K'}
         \sum \limits_{i}^{K'}\delta \left(\mps-\mps_i\right).
     \label{eq:approx_particle_filter}
 \end{equation}
 For each particle we now sample a datum from the likelihood function for each
 experiment,
 \begin{equation}
-    \data_{1:n_e}^{(j)} \sim
+    \data^{(j)} \sim
         \Lhood \left(
-            \mps_j;\data_{1:n_e},\eps_{1:n}
+            \mps_j;\data,\eps
         \right)
         \quad\quad \forall \ \mps_j \in \mps_{1:K'}.
 \end{equation}
 The set of sampled data is an approximation to the joint outcome, particle
 distribution
 \begin{equation}
-    \Pr(\data_{1:n_e},\mps) \approx
+    \Pr(\data,\mps|\eps) \approx
         \frac{1}{K'}\sum \limits_{i}^{K'} \delta \left(
-            \data_{1:n_e}-\data_{1:n_e}^{(i)}\right)\delta\left(\mps-\mps_i
+            \data-\data^{(i)}\right)\delta\left(\mps-\mps_i
         \right).
     \label{eq:sampled-joint-distribution}
 \end{equation}
 The average utility---\autoref{eq:average-utility}---may be expanded in
-conjunction with---\autoref{eq:future-utility}---as
+conjunction with \autoref{eq:future-utility} as
 \begin{align}
-    U_n(\eps_{1:n_e})
-        &= \int\int \Pr(\data_{1:n_e}|\mps,\eps)\pi_n(\mps)
-            U_n(\mps,\data,\eps)\dd\mps \dd\data_{1:n_e} \nonumber \\
-        &= \int\int \Pr(\data_{1:n_e},\mps|\eps)
-            U_n(\mps,\data,\eps_{1:n_e})\dd\mps \dd\data_{1:n_e}.
+    U_n(\eps)
+        &= \int\int \Pr(\data|\mps,\eps)\tilde\pi_{n,\data,\eps}(\mps)
+            U_n(\mps,\data,\eps)\dd\mps \dd\data \nonumber \\
+        &= \int\int \Pr(\data,\mps|\eps)
+            U_n(\mps,\data,\eps)\dd\mps \dd\data.
 \label{eq:average-utility-expanded}
 \end{align}
 The approximate particle, datum joint distribution,
@@ -1513,22 +1518,26 @@ The approximate particle, datum joint distribution,
 \eqref{eq:average-utility-expanded} and the integrals are thus replaced by a
 sum,
 \begin{align}
-    U_n(\eps_{1:n_e}) \approx
-        \frac{1}{K'} \sum \limits_i^{K'} U_n(\mps,\data_{1:n_e},\eps_{1:n_e}),
+    U_n(\eps) \approx
+        \frac{1}{K'} \sum \limits_i^{K'} U_n(\mps,\data,\eps),
 \end{align}
 which is the average utility of the joint sampled particle, datum distribution.
 When the utility is the negative mean-squared error the Bayes risk has the
 approximate form
 \begin{align}
-    r_{n,Q}(\eps_{1:n_e}) \approx \frac{1}{K'}\sum \limits_i^{K'} \Tr Q(\mps_i - \hat\mps_{n,\data_i,\eps})^\T(\mps_i - \hat\mps_{n,\data_i,\eps}),
+    r_{n,Q}(\eps) \approx
+        \frac{1}{K'}\sum \limits_i^{K'}
+        \Tr Q
+            (\mps_i - \hat\mps_{n,\data^{(i)},\eps})^\T
+            (\mps_i - \hat\mps_{n,\data^{(i)},\eps}),
     \label{eq:bayes-risk-sampled}
 \end{align}
-where $\hat\mps_{n,\data_i,\eps}$ is the posterior mean given the the
+where $\hat\mps_{n,\data^{(i)},\eps}$ is the posterior mean given the the
 approximate prior \eqref{eq:approx_particle_filter},
 \begin{align}
-    \hat\mps_{n,\data_j,\eps} =
+    \hat\mps_{n,\data^{(j)},\eps} =
         \sum \limits_i^{K'} \frac{\Lhood \left(
-            \mps_i;d_{1:n_e}^{(j)},\eps_{1:n_e}
+            \mps_i;d^{(j)},\eps
         \right)}{K'}\mps_i.
 \end{align}
 The evaluation of the Bayes risk requires on the order of $O(K'^2)$ likelihood
@@ -1542,30 +1551,29 @@ when sampling is expensive.
 Provided the outcome domain does not depend on the experiment---as is the case
 for our experiments---we may perform maximum importance sampling (MIS) to sample
 outcomes from an alternative distribution---chiefly the marginalized outcome
-distribution $\Pr(d_{1:n_e})$---and properly re-weight the resultant utility
+distribution $\Pr(\data|\eps)$---and properly re-weight the resultant utility
 functions \cite{UeberhuberNumericalComputationMethods1997}.
-
-The sampled outcome distribution $\Pr(d_{1:n_e})$ is obtained from the sampled
-$\Pr(\data_{1:n_e},\mps)$ by neglecting the associated model parameter,
+The sampled outcome distribution $\Pr(d|\eps)$ is obtained from the sampled
+$\Pr(\data,\mps|\eps)$ by neglecting the associated model parameter,
 \begin{equation}
-    \Pr(\data_{1:n_e}) \approx
+    \Pr(\data|\eps) \approx
         \frac{1}{K'}\sum \limits_{i}^{K'} \delta
-        \left(\data_{1:n_e}-\data_{1:n_e}^{(i)}\right).
+        \left(\data-\data^{(i)}\right).
     \label{eq:sampled-marginalized-distribution}
 \end{equation}
 The MIS utility is given as
 \begin{align}
     U_n(\eps)
-        &= \int\int \Pr(\data_{1:n_e}|\mps,\eps_{1:n_e})\pi_n(\mps)
-            \frac{\Pr(\data_{1:n_e})}{\Pr(\data_{1:n_e})}
-            U_n(\mps,\data_{1:n_e},\eps_{1:n_e})
-            \dd\mps \dd\data_{1:n_e} \nonumber\\
+        &= \int\int \Pr(\data|\mps,\eps)\pi_n(\mps)
+            \frac{\Pr(\data)}{\Pr(\data)}
+            U_n(\mps,\data,\eps)
+            \dd\mps \dd\data \nonumber\\
         &\approx \frac{1}{K'}\sum \limits_{i}^{K'}\sum \limits_{j}^{K}
-            \frac{\Pr(\data_{1:n_e}^{(i)}|\mps_j,\eps_{1:n_e})\omega_{n,j}}{
-            \Pr(\data_{1:n_e})^{(i)}}
-            U_n(\mps_j,\data_{1:n_e}^{(i)},\eps_{1:n_e})\nonumber \\
+            \frac{\Pr(\data^{(i)}|\mps_j,\eps)\omega_{n,j}}{
+            \Pr(\data^{(i)})}
+            U_n(\mps_j,\data^{(i)},\eps)\nonumber \\
         &= \frac{1}{K'}\sum \limits_{i}^{K'}\sum \limits_{j}^{K} \omega_{n+1|
-            \data_{1:n_e}^{(i)},j}U_n(\mps_j,\data_{1:n_e}^{(i)},\eps_{1:n_e}),
+            \data^{(i)},j}U_n(\mps_j,\data^{(i)},\eps),
     \label{eq:mis-average-utility-expanded}
 \end{align}
 where the judicious choice of the sampling distribution has allowed the utility
@@ -1573,16 +1581,16 @@ to be written as the average of the posterior utility expectation  over the
 marginalized outcome distribution.
 For the case of the Bayes risk this may be further simplified to
 \begin{align}
-    r_{n,Q}(\eps_{1:n_e}) &\approx
+    r_{n,Q}(\eps) &\approx
         \frac{1}{K'}\sum \limits_i^{K'}  \Tr\left[ Q  \Cov_{\tilde{\pi}}
-        [\mps|\data_{1:n_e}^{(i)},\eps_{1:n_e}]\right] \nonumber\\
+        [\mps|\data^{(i)},\eps]\right] \nonumber\\
         &=\frac{1}{K'}\sum \limits_i^{K'}
             \Tr\left[ Q(\widehat{x^Tx}_{i}-\hat{x}_i^T\hat{x}_i)\right],
     \label{eq:mis-bayes-risk-sampled}
 \end{align}
 where $\widehat{x^Tx}_i=\sum
-\limits_{j}^K\omega_{n+1|\data_{1:n_e}^{(i)},j}x_j^Tx_j$, and $\hat{x}_i=\sum
-\limits_{j}^K\omega_{n+1|\data_{1:n_e}^{(i)},j}x_j$.
+\limits_{j}^K\omega_{n+1|\data^{(i)},j}x_j^Tx_j$, and $\hat{x}_i=\sum
+\limits_{j}^K\omega_{n+1|\data^{(i)},j}x_j$.
 
 In general the the initial prior distribution may be downsampled to some number
 of particles $K$, such that we now have two parameters that may be tuned, the
@@ -1617,7 +1625,8 @@ computational resources to refine to the evaluation accuracy.
         found in \autoref{tab:heuristics}. (a) Log mean squared difference for
         all experiments computed with respect to a 4000 outcome, 4000 particle
         reference evaluation. (b) Log evaluation time(s) of Bayes risk over all
-        experiments for a given number of outcome and particle samples.}
+        experiments for a given number of outcome and particle samples.
+        These calculations were done on an i9-7980XE CPU.}
     \label{fig:computational-cost-heatmap}
 \end{figure*}
 
