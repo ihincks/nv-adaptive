@@ -212,6 +212,8 @@ In \autoref{sec:computation-and-hardware} we discuss some
 hardware, software, and implementation details of our setup.
 Finally, in \autoref{sec:results} we present our results
 comparing offline and online experiment design heuristics.
+Code and data to reproduce the results of this paper can
+be found in Reference~\cite{hincks_code_2018}.
 
 %=============================================================================
 \section{Inference of Quantum Devices}
@@ -1554,7 +1556,7 @@ Provided the outcome domain does not depend on the experiment---as is the case
 for our experiments---we may perform maximum importance sampling (MIS) to sample
 outcomes from an alternative distribution---chiefly the marginalized outcome
 distribution $\Pr(\data|\eps)$---and properly re-weight the resultant utility
-functions \cite{UeberhuberNumericalComputationMethods1997}.
+functions \cite{ueberhuber_numerical_1997}.
 The sampled outcome distribution $\Pr(d|\eps)$ is obtained from the sampled
 $\Pr(\data,\mps|\eps)$ by neglecting the associated model parameter,
 \begin{equation}
