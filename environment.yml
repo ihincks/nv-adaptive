@@ -1,0 +1,18 @@
+name: nvadapt
+channels:
+  - intel
+dependencies:
+  - python=2.7
+  - jupyter
+  - cython
+  - numpy
+  - scipy
+  - matplotlib
+  - ipyparallel
+  - seaborn
+  - dill
+  - future
+  - pandas
+  - nb_conda
+  - pip:
+    - git+https://github.com/whitewhim2718/python-qinfer.git@e1e5acaa3dda5
